@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: digitalshelf
+      POSTGRES_PASSWORD: digitalshelf
+      POSTGRES_DB: digitalshelf
+    ports:
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  saas-server:
+    build: ./apps/saas-server
+    ports:
+      - '8080:8080'
+    env_file: .env
+    depends_on:
+      - postgres
+
+volumes:
+  pgdata:
