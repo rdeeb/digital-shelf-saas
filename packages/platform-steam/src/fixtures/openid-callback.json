@@ -1,0 +1,12 @@
+{
+  "openid.ns": "http://specs.openid.net/auth/2.0",
+  "openid.mode": "id_res",
+  "openid.op_endpoint": "https://steamcommunity.com/openid/login",
+  "openid.claimed_id": "https://steamcommunity.com/openid/id/76561198000000000",
+  "openid.identity": "https://steamcommunity.com/openid/id/76561198000000000",
+  "openid.return_to": "http://localhost:8080/api/admin/steam/callback",
+  "openid.response_nonce": "2026-07-01T12:00:00Ztestnonce",
+  "openid.assoc_handle": "1234567890",
+  "openid.signed": "signed,op_endpoint,claimed_id,identity,return_to,response_nonce,assoc_handle",
+  "openid.sig": "test-signature"
+}
