@@ -6,6 +6,7 @@ import { registerHealthRoutes } from './routes/health.js';
 import { registerV1AuthRoutes, registerV1OnboardingRoutes } from './routes/v1/index.js';
 import { registerV1BillingRoutes } from './routes/v1/billing.js';
 import { registerV1SettingsRoutes } from './routes/v1/settings.js';
+import { registerV1LibraryRoutes } from './routes/v1/library.js';
 import { registerBillingWebhookRoutes } from './routes/billing/webhooks.js';
 
 export async function buildApp(options: FastifyServerOptions = {}) {
@@ -22,6 +23,7 @@ export async function buildApp(options: FastifyServerOptions = {}) {
   await registerV1OnboardingRoutes(app);
   await registerV1BillingRoutes(app);
   await registerV1SettingsRoutes(app);
+  await registerV1LibraryRoutes(app);
   await registerBillingWebhookRoutes(app);
 
   app.setNotFoundHandler((request, reply) => {
