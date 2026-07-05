@@ -6,9 +6,5 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"],
-  "references": [
-    { "path": "../../packages/shared-types" },
-    { "path": "../../packages/platform-steam" },
-    { "path": "../../packages/billing" }
-  ]
+  "references": [{ "path": "../shared-types" }]
 }

@@ -13,6 +13,7 @@
     "prisma:generate": "prisma generate"
   },
   "dependencies": {
+    "@digital-shelf-saas/billing": "*",
     "@digital-shelf-saas/platform-steam": "*",
     "@digital-shelf-saas/shared-types": "*",
     "@fastify/cookie": "^11.0.2",

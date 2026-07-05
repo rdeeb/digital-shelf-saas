@@ -4,6 +4,8 @@ import { loadEnv } from './config/env.js';
 import { registerSteamAuthRoutes } from './routes/auth/steam.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerV1AuthRoutes, registerV1OnboardingRoutes } from './routes/v1/index.js';
+import { registerV1BillingRoutes } from './routes/v1/billing.js';
+import { registerBillingWebhookRoutes } from './routes/billing/webhooks.js';
 
 export async function buildApp(options: FastifyServerOptions = {}) {
   const env = loadEnv();
@@ -17,6 +19,8 @@ export async function buildApp(options: FastifyServerOptions = {}) {
   await registerSteamAuthRoutes(app);
   await registerV1AuthRoutes(app);
   await registerV1OnboardingRoutes(app);
+  await registerV1BillingRoutes(app);
+  await registerBillingWebhookRoutes(app);
 
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith('/api/')) {

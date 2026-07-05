@@ -1,40 +1,16 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { PrismaClient } from '@prisma/client';
+import {
+  createEntitlementService,
+  EntitlementError,
+  type EntitlementService,
+} from '@digital-shelf-saas/billing';
+import { prisma } from '../db/client.js';
 
-export class EntitlementError extends Error {
-  readonly code: string;
-
-  constructor(code: string, message: string) {
-    super(message);
-    this.name = 'EntitlementError';
-    this.code = code;
-  }
-}
-
-export function createEntitlementService(prisma: PrismaClient) {
-  return {
-    async requireActiveSubscription(userId: string): Promise<void> {
-      const subscription = await prisma.subscription.findUnique({ where: { userId } });
-      if (!subscription || subscription.status !== 'active') {
-        throw new EntitlementError(
-          'SUBSCRIPTION_REQUIRED',
-          'An active subscription is required.',
-        );
-      }
-    },
-
-    async hasActiveSubscription(userId: string): Promise<boolean> {
-      const subscription = await prisma.subscription.findUnique({ where: { userId } });
-      return subscription?.status === 'active';
-    },
-  };
-}
-
-export type EntitlementService = ReturnType<typeof createEntitlementService>;
+export { EntitlementError, createEntitlementService, type EntitlementService };
 
 export async function registerEntitlementGuard(
   app: FastifyInstance,
-  entitlement: EntitlementService,
+  entitlement: EntitlementService = createEntitlementService(prisma),
 ): Promise<void> {
   app.addHook('preHandler', async (request: FastifyRequest, reply: FastifyReply) => {
     if (!request.userId) {

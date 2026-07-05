@@ -9,3 +9,4 @@ export * from './admin-library.js';
 export * from './admin-logs.js';
 export * from './admin-setup.js';
 export * from './v1/auth.js';
+export * from './v1/billing.js';
