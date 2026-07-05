@@ -26,6 +26,11 @@ describe('createId', () => {
       frame: 'frame',
       sync: 'sync',
       metadata: 'meta',
+      user: 'user',
+      session: 'sess',
+      sub: 'sub',
+      subEvent: 'subev',
+      authCode: 'acode',
     });
   });
 });

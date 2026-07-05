@@ -8,6 +8,11 @@ export const ID_PREFIX = {
   frame: 'frame',
   sync: 'sync',
   metadata: 'meta',
+  user: 'user',
+  session: 'sess',
+  sub: 'sub',
+  subEvent: 'subev',
+  authCode: 'acode',
 } as const;
 
 export type IdPrefix = keyof typeof ID_PREFIX;

@@ -4,3 +4,6 @@ export * from './renderer.js';
 export * from './ids.js';
 export * from './schemas.js';
 export * from './settings.js';
+export * from './saas.js';
+export * from './user-settings.js';
+export * from './platform-settings.js';
