@@ -105,10 +105,10 @@ export async function registerDeviceV1Routes(app: FastifyInstance): Promise<void
   const deviceService = createDeviceService(prisma, { pairingEnabled: true });
   const deviceAuth = (await import('../../lib/device-auth.js')).createDeviceAuthHook(prisma);
 
-  const { registerDeviceRegisterRoute } = await import('./device/v1/register.js');
-  const { registerDeviceClaimStatusRoute } = await import('./device/v1/claim-status.js');
-  const { registerDeviceConfigRoute } = await import('./device/v1/config.js');
-  const { registerDeviceHeartbeatRoute } = await import('./device/v1/heartbeat.js');
+  const { registerDeviceRegisterRoute } = await import('../device/v1/register.js');
+  const { registerDeviceClaimStatusRoute } = await import('../device/v1/claim-status.js');
+  const { registerDeviceConfigRoute } = await import('../device/v1/config.js');
+  const { registerDeviceHeartbeatRoute } = await import('../device/v1/heartbeat.js');
 
   registerDeviceRegisterRoute(app, deviceService);
   registerDeviceClaimStatusRoute(app, deviceService);
