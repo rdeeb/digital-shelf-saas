@@ -5,6 +5,7 @@ import { registerSteamAuthRoutes } from './routes/auth/steam.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerV1AuthRoutes, registerV1OnboardingRoutes } from './routes/v1/index.js';
 import { registerV1BillingRoutes } from './routes/v1/billing.js';
+import { registerV1SettingsRoutes } from './routes/v1/settings.js';
 import { registerBillingWebhookRoutes } from './routes/billing/webhooks.js';
 
 export async function buildApp(options: FastifyServerOptions = {}) {
@@ -20,6 +21,7 @@ export async function buildApp(options: FastifyServerOptions = {}) {
   await registerV1AuthRoutes(app);
   await registerV1OnboardingRoutes(app);
   await registerV1BillingRoutes(app);
+  await registerV1SettingsRoutes(app);
   await registerBillingWebhookRoutes(app);
 
   app.setNotFoundHandler((request, reply) => {
