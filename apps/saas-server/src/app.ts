@@ -7,6 +7,7 @@ import { registerV1AuthRoutes, registerV1OnboardingRoutes } from './routes/v1/in
 import { registerV1BillingRoutes } from './routes/v1/billing.js';
 import { registerV1SettingsRoutes } from './routes/v1/settings.js';
 import { registerV1LibraryRoutes } from './routes/v1/library.js';
+import { registerV1DeviceRoutes, registerDeviceV1Routes } from './routes/v1/devices.js';
 import { registerBillingWebhookRoutes } from './routes/billing/webhooks.js';
 
 export async function buildApp(options: FastifyServerOptions = {}) {
@@ -24,6 +25,8 @@ export async function buildApp(options: FastifyServerOptions = {}) {
   await registerV1BillingRoutes(app);
   await registerV1SettingsRoutes(app);
   await registerV1LibraryRoutes(app);
+  await registerV1DeviceRoutes(app);
+  await registerDeviceV1Routes(app);
   await registerBillingWebhookRoutes(app);
 
   app.setNotFoundHandler((request, reply) => {
