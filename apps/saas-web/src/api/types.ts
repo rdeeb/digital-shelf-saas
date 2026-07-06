@@ -14,6 +14,50 @@ export type PublicSettings = {
   };
 };
 
+export type AuthMeResponse = {
+  user: {
+    id: string;
+    steamId64: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+};
+
+export type BillingCycle = 'monthly' | 'annual';
+
+export type BillingPlanId = 'plan_basic' | 'plan_pro';
+
+export type BillingPlan = {
+  id: BillingPlanId;
+  name: string;
+  deviceLimit: number | null;
+};
+
+export type BillingSalesFlags = {
+  newEnabled: boolean;
+  renewalsEnabled: boolean;
+  stopMessage: string;
+};
+
+export type BillingPlansResponse = {
+  plans: BillingPlan[];
+  salesFlags: BillingSalesFlags;
+};
+
+export type BillingStatusResponse = {
+  subscription: {
+    planId: string;
+    status: string;
+    provider: string;
+    billingCycle: string;
+    currentPeriodEnd: string | null;
+  } | null;
+};
+
+export type PaypalSubscribeResponse = {
+  approvalUrl: string;
+};
+
 export type SetupStatus = {
   complete: boolean;
   steps: {

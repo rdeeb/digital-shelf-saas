@@ -1,4 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { Banner } from '../components/Banner';
+import { useSubscriptionGate } from '../components/SubscriptionGate';
 
 const navItems = [
   { to: '/library', label: 'Library' },
@@ -8,6 +10,8 @@ const navItems = [
 ];
 
 export function AppLayout() {
+  const { salesStopMessage } = useSubscriptionGate();
+
   return (
     <div className="flex min-h-screen">
       <nav className="w-52 shrink-0 bg-neutral-900 p-4 text-white">
@@ -27,7 +31,8 @@ export function AppLayout() {
           ))}
         </ul>
       </nav>
-      <main className="flex-1 p-8">
+      <main className="flex-1 space-y-6 p-8">
+        {salesStopMessage ? <Banner tone="info" message={salesStopMessage} /> : null}
         <Outlet />
       </main>
     </div>

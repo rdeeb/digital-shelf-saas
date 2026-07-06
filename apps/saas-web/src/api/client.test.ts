@@ -44,4 +44,20 @@ describe('api client', () => {
       credentials: 'include',
     });
   });
+
+  it('posts PayPal subscription requests through the v1 billing path', async () => {
+    const fetchMock = stubFetch({ approvalUrl: 'https://paypal.example/approve' });
+
+    await apiPost('/billing/paypal/subscribe', {
+      planId: 'plan_basic',
+      billingCycle: 'monthly',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/billing/paypal/subscribe', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ planId: 'plan_basic', billingCycle: 'monthly' }),
+      credentials: 'include',
+    });
+  });
 });
