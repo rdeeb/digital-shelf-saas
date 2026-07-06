@@ -14,7 +14,9 @@
   },
   "dependencies": {
     "@digital-shelf-saas/billing": "*",
+    "@digital-shelf-saas/core": "*",
     "@digital-shelf-saas/platform-steam": "*",
+    "@digital-shelf-saas/renderer": "*",
     "@digital-shelf-saas/shared-types": "*",
     "@fastify/cookie": "^11.0.2",
     "@fastify/cors": "^11.0.1",

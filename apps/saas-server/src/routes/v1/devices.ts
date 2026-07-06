@@ -1,4 +1,6 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   adminClaimRequestSchema,
   adminDevicePatchSchema,
@@ -9,7 +11,52 @@ import { prisma } from '../../db/client.js';
 import { registerAuthPlugin } from '../../middleware/auth.js';
 import { registerEntitlementGuard } from '../../middleware/entitlement.js';
 import { createDeviceService, DeviceServiceError } from '../../services/device-service.js';
+import {
+  createFrameService,
+  DeviceConfigNotFoundError,
+  NoEligibleGamesError,
+  type GameArtService,
+} from '../../services/frame-service.js';
 import { createUserSettingsService } from '../../services/user-settings-service.js';
+import { loadEnv } from '../../config/env.js';
+import { createFrameStorage } from '../../storage/index.js';
+
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
+
+const passthroughGameArtService: GameArtService = {
+  async ensureArt(game) {
+    return {
+      accentColor: game.accentColor ?? '#202020',
+      spineTextColor: game.spineTextColor === 'black' ? 'black' : 'white',
+      spineArtPath: game.spineArtPath,
+    };
+  },
+};
+
+function createSaasFrameService() {
+  const env = loadEnv();
+  return createFrameService(prisma, {
+    storage: createFrameStorage(env, { rootDir }),
+    artRootPath: '',
+    resolveSpineStyle: async () => 'gradient',
+    resolveShowTitle: async () => true,
+    gameArtService: passthroughGameArtService,
+  });
+}
+
+function frameErrorReply(reply: FastifyReply, error: unknown) {
+  if (error instanceof NoEligibleGamesError) {
+    return reply.status(422).send({
+      error: { code: error.code, message: error.message },
+    });
+  }
+  if (error instanceof DeviceConfigNotFoundError) {
+    return reply.status(404).send({
+      error: { code: error.code, message: error.message },
+    });
+  }
+  throw error;
+}
 
 export async function registerV1DeviceRoutes(app: FastifyInstance): Promise<void> {
   const auth = createAuthServiceFromEnv();
@@ -20,6 +67,7 @@ export async function registerV1DeviceRoutes(app: FastifyInstance): Promise<void
     entitlement,
     userSettings,
   });
+  const frameService = createSaasFrameService();
 
   await app.register(
     async (protectedApp) => {
@@ -45,6 +93,19 @@ export async function registerV1DeviceRoutes(app: FastifyInstance): Promise<void
             });
           }
           throw error;
+        }
+      });
+
+      protectedApp.get('/devices/:deviceId/frame', async (request, reply) => {
+        const { deviceId } = request.params as { deviceId: string };
+        const force = (request.query as { force?: string }).force === 'true';
+        try {
+          return await frameService.getLatestFrame(deviceId, {
+            force,
+            userId: request.userId!,
+          });
+        } catch (error) {
+          return frameErrorReply(reply, error);
         }
       });
     },
@@ -103,12 +164,16 @@ export async function registerV1DeviceRoutes(app: FastifyInstance): Promise<void
 
 export async function registerDeviceV1Routes(app: FastifyInstance): Promise<void> {
   const deviceService = createDeviceService(prisma, { pairingEnabled: true });
+  const frameService = createSaasFrameService();
+  const frameStorage = createFrameStorage(loadEnv(), { rootDir });
   const deviceAuth = (await import('../../lib/device-auth.js')).createDeviceAuthHook(prisma);
 
   const { registerDeviceRegisterRoute } = await import('../device/v1/register.js');
   const { registerDeviceClaimStatusRoute } = await import('../device/v1/claim-status.js');
   const { registerDeviceConfigRoute } = await import('../device/v1/config.js');
   const { registerDeviceHeartbeatRoute } = await import('../device/v1/heartbeat.js');
+  const { registerDeviceFrameManifestRoute } = await import('../device/v1/frame-manifest.js');
+  const { registerDeviceFrameDownloadRoutes } = await import('../device/v1/frames.js');
 
   registerDeviceRegisterRoute(app, deviceService);
   registerDeviceClaimStatusRoute(app, deviceService);
@@ -117,5 +182,7 @@ export async function registerDeviceV1Routes(app: FastifyInstance): Promise<void
     protectedApp.addHook('preHandler', deviceAuth);
     registerDeviceConfigRoute(protectedApp, deviceService);
     registerDeviceHeartbeatRoute(protectedApp, deviceService);
+    registerDeviceFrameManifestRoute(protectedApp, frameService);
+    registerDeviceFrameDownloadRoutes(protectedApp, deviceService, frameStorage);
   });
 }
