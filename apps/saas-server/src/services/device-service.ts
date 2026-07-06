@@ -212,7 +212,7 @@ export function createDeviceService(prisma: PrismaClient, deps: DeviceServiceDep
 
   async function claimByCode(
     userId: string,
-    input: { claimCode: string; name?: string },
+    input: { deviceId?: string; claimCode: string; name?: string },
   ): Promise<AdminClaimResponse> {
     if (!deps.pairingEnabled) {
       throw new DeviceServiceError('PAIRING_DISABLED', 'Device pairing is disabled.', 403);
@@ -232,6 +232,9 @@ export function createDeviceService(prisma: PrismaClient, deps: DeviceServiceDep
     const device = await prisma.device.findFirst({ where: { claimCode: input.claimCode } });
     if (!device) {
       throw new DeviceServiceError('CLAIM_CODE_NOT_FOUND', 'Claim code not found.', 404);
+    }
+    if (input.deviceId && device.id !== input.deviceId) {
+      throw new DeviceServiceError('DEVICE_NOT_FOUND', 'Device not found.', 404);
     }
     if (device.userId && device.userId !== userId) {
       throw new DeviceServiceError('DEVICE_ALREADY_CLAIMED', 'Device is already claimed.', 409);

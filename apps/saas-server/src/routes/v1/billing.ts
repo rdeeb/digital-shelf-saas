@@ -47,11 +47,15 @@ export async function registerV1BillingRoutes(app: FastifyInstance): Promise<voi
       });
 
       protectedApp.get('/billing/status', async (request, reply) => {
-        const subscription = await prisma.subscription.findUnique({
-          where: { userId: request.userId! },
-        });
+        const [subscription, deviceLimit, canClaimDevice] = await Promise.all([
+          prisma.subscription.findUnique({
+            where: { userId: request.userId! },
+          }),
+          entitlement.getDeviceLimit(request.userId!),
+          entitlement.canClaimDevice(request.userId!),
+        ]);
         if (!subscription) {
-          return reply.send({ subscription: null });
+          return reply.send({ subscription: null, deviceLimit, canClaimDevice });
         }
         return reply.send({
           subscription: {
@@ -61,6 +65,8 @@ export async function registerV1BillingRoutes(app: FastifyInstance): Promise<voi
             billingCycle: subscription.billingCycle,
             currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
           },
+          deviceLimit,
+          canClaimDevice,
         });
       });
 

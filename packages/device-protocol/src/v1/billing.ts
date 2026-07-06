@@ -25,6 +25,8 @@ export const billingStatusResponseSchema = z.object({
       currentPeriodEnd: z.string().nullable(),
     })
     .nullable(),
+  deviceLimit: z.number().nullable(),
+  canClaimDevice: z.boolean(),
 });
 
 export const paypalSubscribeRequestSchema = z.object({

@@ -78,6 +78,27 @@ describe('device-service tenant isolation', () => {
     expect(config.gamesPerFrame).toBe(5);
   });
 
+  it('rejects claim when supplied deviceId does not match claim code device', async () => {
+    const user = await seedUserWithSub('05');
+    const first = await deviceService.register({
+      hardwareId: `hw-claim-match-1-${Date.now()}`,
+    });
+    const second = await deviceService.register({
+      hardwareId: `hw-claim-match-2-${Date.now()}`,
+    });
+
+    await expect(
+      deviceService.claimByCode(user.id, {
+        deviceId: second.deviceId,
+        claimCode: first.claimCode!,
+      }),
+    ).rejects.toMatchObject({ code: 'DEVICE_NOT_FOUND' });
+
+    const firstDevice = await prisma.device.findUniqueOrThrow({ where: { id: first.deviceId } });
+    expect(firstDevice.userId).toBeNull();
+    expect(firstDevice.tokenHash).toBe('');
+  });
+
   it('blocks claim when device limit reached', async () => {
     const user = await seedUserWithSub('04');
     await prisma.subscription.update({

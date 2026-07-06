@@ -52,6 +52,22 @@ export type BillingStatusResponse = {
     billingCycle: string;
     currentPeriodEnd: string | null;
   } | null;
+  deviceLimit: number | null;
+  canClaimDevice: boolean;
+};
+
+export type UserSettingsResponse = {
+  display: {
+    showPublisher: boolean;
+    showPlaytime: boolean;
+    gamesPerFrame: 1 | 2 | 3;
+    rotationIntervalSeconds: number;
+    selectionMode: 'random' | 'backlog' | 'favorites' | 'most_played' | 'never_played';
+    avoidRecentRepeats: boolean;
+  };
+  notifications: {
+    emailOptIn: boolean;
+  };
 };
 
 export type PaypalSubscribeResponse = {

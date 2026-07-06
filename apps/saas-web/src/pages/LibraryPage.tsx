@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiPatch } from '../api/client';
-import type { GameListItem, GamesResponse, MetadataStatus, SyncStatus } from '../api/types';
+import { apiGet, apiPatch, apiPost } from '../api/client';
+import type { GameListItem, GamesResponse } from '../api/types';
 import { Banner } from '../components/Banner';
 import { Button } from '../components/Button';
 import { DataTable } from '../components/DataTable';
@@ -8,11 +8,38 @@ import { DataTable } from '../components/DataTable';
 type PublisherFilter = 'all' | 'has' | 'missing';
 type SortOption = 'name' | 'playtime' | 'recently_synced';
 
+export function buildLibraryPath(params: URLSearchParams): string {
+  return `/library?${params}`;
+}
+
+export function getLibrarySyncPath(): string {
+  return '/library/sync';
+}
+
+export function buildLibraryGamePath(userGameId: string): string {
+  return `/library/games/${userGameId}`;
+}
+
+export function shouldShowNoSyncedGames(input: {
+  loading: boolean;
+  total: number;
+  search: string;
+  favoriteFilter: 'all' | 'true' | 'false';
+  hiddenFilter: 'all' | 'true' | 'false';
+  publisherFilter: PublisherFilter;
+}): boolean {
+  if (input.loading || input.total !== 0) return false;
+  return (
+    input.search.trim() === '' &&
+    input.favoriteFilter === 'all' &&
+    input.hiddenFilter === 'all' &&
+    input.publisherFilter === 'all'
+  );
+}
+
 export function LibraryPage() {
   const [games, setGames] = useState<GameListItem[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 });
-  const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
-  const [metadataStatus, setMetadataStatus] = useState<MetadataStatus | null>(null);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [favoriteFilter, setFavoriteFilter] = useState<'all' | 'true' | 'false'>('all');
@@ -21,7 +48,10 @@ export function LibraryPage() {
   const [sort, setSort] = useState<SortOption>('name');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [banner, setBanner] = useState<{ tone: 'success' | 'error'; message: string } | null>(
+    null,
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 300);
@@ -30,7 +60,7 @@ export function LibraryPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError(null);
+    setBanner(null);
     try {
       const params = new URLSearchParams({
         page: String(page),
@@ -42,17 +72,14 @@ export function LibraryPage() {
       if (favoriteFilter !== 'all') params.set('favorite', favoriteFilter);
       if (hiddenFilter !== 'all') params.set('hidden', hiddenFilter);
 
-      const [gamesData, syncData, metaData] = await Promise.all([
-        apiGet<GamesResponse>(`/api/admin/games?${params}`),
-        apiGet<SyncStatus>('/api/admin/sync/status'),
-        apiGet<MetadataStatus>('/api/admin/metadata/status'),
-      ]);
+      const gamesData = await apiGet<GamesResponse>(buildLibraryPath(params));
       setGames(gamesData.games);
       setPagination(gamesData.pagination);
-      setSyncStatus(syncData);
-      setMetadataStatus(metaData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load library.');
+      setBanner({
+        tone: 'error',
+        message: err instanceof Error ? err.message : 'Failed to load library.',
+      });
     } finally {
       setLoading(false);
     }
@@ -64,33 +91,53 @@ export function LibraryPage() {
 
   async function toggleField(userGameId: string, field: 'favorite' | 'hidden', value: boolean) {
     try {
-      await apiPatch(`/api/admin/games/${userGameId}`, { [field]: value });
+      await apiPatch(buildLibraryGamePath(userGameId), { [field]: value });
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Update failed.');
+      setBanner({ tone: 'error', message: err instanceof Error ? err.message : 'Update failed.' });
     }
   }
 
-  const noGames = (syncStatus?.library.totalGames ?? 0) === 0;
+  async function startSync() {
+    setSyncing(true);
+    setBanner(null);
+    try {
+      await apiPost(getLibrarySyncPath());
+      await load();
+      setBanner({ tone: 'success', message: 'Library sync started.' });
+    } catch (err) {
+      setBanner({ tone: 'error', message: err instanceof Error ? err.message : 'Sync failed.' });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  const noGames = shouldShowNoSyncedGames({
+    loading,
+    total: pagination.total,
+    search,
+    favoriteFilter,
+    hiddenFilter,
+    publisherFilter,
+  });
 
   return (
     <section className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Library</h1>
-        <p className="mt-1 text-sm text-neutral-600">
-          {syncStatus?.library.totalGames ?? 0} games
-          {syncStatus?.library.lastSyncAt
-            ? ` · Last sync ${new Date(syncStatus.library.lastSyncAt).toLocaleString()}`
-            : ''}
-          {metadataStatus
-            ? ` · Publishers: ${metadataStatus.library.withPublisher} yes / ${metadataStatus.library.withoutPublisher} missing`
-            : ''}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">Library</h1>
+          <p className="mt-1 text-sm text-neutral-600">{pagination.total} games</p>
+        </div>
+        <Button onClick={() => void startSync()} disabled={syncing}>
+          {syncing ? 'Syncing...' : 'Sync library'}
+        </Button>
       </div>
 
-      {error ? <Banner tone="error" message={error} /> : null}
+      {banner ? <Banner tone={banner.tone} message={banner.message} /> : null}
 
-      {noGames ? (
+      {loading ? (
+        <p className="text-sm text-neutral-500">Loading games...</p>
+      ) : noGames ? (
         <div className="rounded border border-neutral-200 bg-white p-6 text-sm">
           <p>No games synced yet.</p>
         </div>
@@ -99,7 +146,7 @@ export function LibraryPage() {
           <div className="flex flex-wrap gap-3">
             <input
               type="search"
-              placeholder="Search games…"
+              placeholder="Search games..."
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -154,51 +201,46 @@ export function LibraryPage() {
             </select>
           </div>
 
-          {loading ? (
-            <p className="text-sm text-neutral-500">Loading games…</p>
-          ) : (
-            <DataTable
-              rows={games}
-              rowKey={(row) => row.userGameId}
-              emptyMessage="No games match these filters."
-              columns={[
-                { key: 'name', header: 'Name', render: (row) => row.name },
-                {
-                  key: 'publishers',
-                  header: 'Publisher',
-                  render: (row) =>
-                    row.publishers.length > 0 ? row.publishers.join(', ') : '—',
-                },
-                {
-                  key: 'playtime',
-                  header: 'Playtime',
-                  render: (row) => `${row.playtimeMinutes ?? 0} min`,
-                },
-                {
-                  key: 'favorite',
-                  header: 'Favorite',
-                  render: (row) => (
-                    <input
-                      type="checkbox"
-                      checked={row.favorite}
-                      onChange={(e) => void toggleField(row.userGameId, 'favorite', e.target.checked)}
-                    />
-                  ),
-                },
-                {
-                  key: 'hidden',
-                  header: 'Hidden',
-                  render: (row) => (
-                    <input
-                      type="checkbox"
-                      checked={row.hidden}
-                      onChange={(e) => void toggleField(row.userGameId, 'hidden', e.target.checked)}
-                    />
-                  ),
-                },
-              ]}
-            />
-          )}
+          <DataTable
+            rows={games}
+            rowKey={(row) => row.userGameId}
+            emptyMessage="No games match these filters."
+            columns={[
+              { key: 'name', header: 'Name', render: (row) => row.name },
+              {
+                key: 'publishers',
+                header: 'Publisher',
+                render: (row) => (row.publishers.length > 0 ? row.publishers.join(', ') : '-'),
+              },
+              {
+                key: 'playtime',
+                header: 'Playtime',
+                render: (row) => `${row.playtimeMinutes ?? 0} min`,
+              },
+              {
+                key: 'favorite',
+                header: 'Favorite',
+                render: (row) => (
+                  <input
+                    type="checkbox"
+                    checked={row.favorite}
+                    onChange={(e) => void toggleField(row.userGameId, 'favorite', e.target.checked)}
+                  />
+                ),
+              },
+              {
+                key: 'hidden',
+                header: 'Hidden',
+                render: (row) => (
+                  <input
+                    type="checkbox"
+                    checked={row.hidden}
+                    onChange={(e) => void toggleField(row.userGameId, 'hidden', e.target.checked)}
+                  />
+                ),
+              },
+            ]}
+          />
 
           {pagination.totalPages > 1 ? (
             <div className="flex items-center gap-3">

@@ -48,4 +48,48 @@ describe('billing routes', () => {
     await prisma.session.deleteMany({ where: { userId: user.id } });
     await prisma.user.delete({ where: { id: user.id } });
   });
+
+  it('GET /api/v1/billing/status includes device limit fields', async () => {
+    const user = await prisma.user.create({
+      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000034` },
+    });
+    await prisma.subscription.create({
+      data: {
+        id: createId('sub'),
+        userId: user.id,
+        planId: 'plan_basic',
+        provider: 'paypal',
+        status: 'active',
+        billingCycle: 'monthly',
+      },
+    });
+    await prisma.device.create({
+      data: {
+        id: createId('device'),
+        userId: user.id,
+        name: 'Kitchen',
+        hardwareId: `hw-billing-status-${Date.now()}`,
+        tokenHash: 'claimed-token-hash',
+      },
+    });
+    const session = await auth.createWebSession(user.id);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/billing/status',
+      cookies: { [SESSION_COOKIE]: session.id },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      subscription: { planId: 'plan_basic', status: 'active' },
+      deviceLimit: 1,
+      canClaimDevice: false,
+    });
+
+    await prisma.session.deleteMany({ where: { userId: user.id } });
+    await prisma.device.deleteMany({ where: { userId: user.id } });
+    await prisma.subscription.delete({ where: { userId: user.id } });
+    await prisma.user.delete({ where: { id: user.id } });
+  });
 });

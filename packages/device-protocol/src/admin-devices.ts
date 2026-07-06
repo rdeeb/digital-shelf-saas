@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { gamesPerFrameSchema, selectionModeSchema } from '@digital-shelf-saas/shared-types';
 
 export const adminClaimRequestSchema = z.object({
+  deviceId: z.string().min(1).optional(),
   claimCode: z.string().regex(/^\d{6}$/),
   name: z.string().min(1).max(64).optional(),
 });

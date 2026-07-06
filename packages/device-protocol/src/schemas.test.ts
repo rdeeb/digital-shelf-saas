@@ -9,6 +9,7 @@ import {
 } from './admin-library.js';
 import { adminLogsResponseSchema, adminRecentErrorsResponseSchema } from './admin-logs.js';
 import { setupStatusSchema } from './admin-setup.js';
+import { billingStatusResponseSchema } from './v1/billing.js';
 
 describe('device-protocol schemas', () => {
   it('accepts valid register request', () => {
@@ -32,7 +33,11 @@ describe('device-protocol schemas', () => {
   });
 
   it('accepts admin claim request', () => {
-    const result = adminClaimRequestSchema.parse({ claimCode: '483921' });
+    const result = adminClaimRequestSchema.parse({
+      deviceId: 'device_1',
+      claimCode: '483921',
+    });
+    expect(result.deviceId).toBe('device_1');
     expect(result.claimCode).toBe('483921');
   });
 });
@@ -76,6 +81,19 @@ describe('admin library schemas', () => {
       pagination: { page: 1, limit: 50, total: 1, totalPages: 1 },
     });
     expect(result.games).toHaveLength(1);
+  });
+});
+
+describe('v1 billing schemas', () => {
+  it('accepts billing status with device entitlement fields', () => {
+    const result = billingStatusResponseSchema.parse({
+      subscription: null,
+      deviceLimit: 1,
+      canClaimDevice: false,
+    });
+
+    expect(result.deviceLimit).toBe(1);
+    expect(result.canClaimDevice).toBe(false);
   });
 });
 
