@@ -9,14 +9,26 @@ services:
       - '5433:5432'
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U digitalshelf -d digitalshelf']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   saas-server:
-    build: ./apps/saas-server
+    build:
+      context: .
+      dockerfile: apps/saas-server/Dockerfile
     ports:
       - '8080:8080'
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://digitalshelf:digitalshelf@postgres:5432/digitalshelf
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
 volumes:
   pgdata:

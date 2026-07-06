@@ -8,6 +8,7 @@ export const ID_PREFIX = {
   frame: 'frame',
   sync: 'sync',
   metadata: 'meta',
+  err: 'err',
   user: 'user',
   session: 'sess',
   sub: 'sub',

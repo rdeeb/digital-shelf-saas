@@ -1,0 +1,10 @@
+.git
+.turbo
+.env
+.env.*
+!.env.example
+node_modules
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+npm-debug.log*

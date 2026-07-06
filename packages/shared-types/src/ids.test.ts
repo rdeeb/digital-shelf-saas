@@ -10,6 +10,7 @@ describe('createId', () => {
     expect(createId('platformAccount')).toMatch(/^plat_/);
     expect(createId('userGame')).toMatch(/^ug_/);
     expect(createId('metadata')).toMatch(/^meta_/);
+    expect(createId('err')).toMatch(/^err_/);
   });
 
   it('generates unique IDs', () => {
@@ -26,6 +27,7 @@ describe('createId', () => {
       frame: 'frame',
       sync: 'sync',
       metadata: 'meta',
+      err: 'err',
       user: 'user',
       session: 'sess',
       sub: 'sub',

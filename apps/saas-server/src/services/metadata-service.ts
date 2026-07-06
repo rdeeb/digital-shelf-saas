@@ -109,13 +109,13 @@ const latestJobStateByUser = new Map<string, MetadataJobState>();
 const activeJobByUser = new Map<string, Promise<void>>();
 
 export function createMetadataService(prisma: PrismaClient, deps: MetadataServiceDeps = {}) {
+  const timeoutMs = deps.timeoutMs ?? METADATA_REQUEST_TIMEOUT_MS;
   const getAppDetailsImpl =
     deps.getAppDetailsImpl ??
-    ((params) => getAppDetails({ appId: params.appId }, { timeoutMs: deps.timeoutMs ?? METADATA_REQUEST_TIMEOUT_MS }));
+    ((params) => getAppDetails({ appId: params.appId }, { timeoutMs }));
   const sleep = deps.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
   const now = deps.now ?? (() => new Date());
   const delayMs = deps.delayMs ?? METADATA_REQUEST_DELAY_MS;
-  const timeoutMs = deps.timeoutMs ?? METADATA_REQUEST_TIMEOUT_MS;
   const cacheTtlDays = deps.cacheTtlDays ?? METADATA_CACHE_TTL_DAYS;
   const maxRetries = deps.maxRetries ?? METADATA_MAX_RETRIES;
   const backoffBaseMs = deps.backoffBaseMs ?? METADATA_BACKOFF_BASE_MS;
