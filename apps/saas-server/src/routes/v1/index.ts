@@ -19,7 +19,9 @@ export async function registerV1AuthRoutes(app: FastifyInstance): Promise<void> 
         return reply.send({
           user: {
             id: user.id,
+            email: user.email,
             steamId64: user.steamId64,
+            activationState: user.activationState,
             displayName: user.displayName,
             avatarUrl: user.avatarUrl,
           },
@@ -68,6 +70,12 @@ export async function registerV1OnboardingRoutes(app: FastifyInstance): Promise<
         }
 
         return reply.send({
+          activationState: (
+            await prisma.user.findUniqueOrThrow({
+              where: { id: userId },
+              select: { activationState: true },
+            })
+          ).activationState,
           hasActiveSubscription,
           hasSyncedLibrary,
           hasClaimedDevice,
