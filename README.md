@@ -1,0 +1,158 @@
+# Digital Shelf SaaS
+
+Multi-tenant SaaS server and web app for Digital Shelf. This repo contains the cloud API, billing integrations, tenant-scoped library and device flows, and the React web client.
+
+## Stack
+
+- Node.js 20+
+- npm 10+
+- TypeScript
+- Turborepo workspaces
+- Fastify
+- Prisma + PostgreSQL
+- React 19 + Vite
+- Docker Compose for local Postgres
+
+## Repo Layout
+
+| Path | Purpose |
+| --- | --- |
+| `apps/saas-server/` | Fastify API, Prisma schema, auth, storage, routes |
+| `apps/saas-web/` | React web client |
+| `packages/` | shared packages for types, billing, Steam, rendering, and protocol schemas |
+| `docs/superpowers/` | design specs and implementation plans |
+
+## Prerequisites
+
+- Node.js `>=20`
+- npm `>=10`
+- Docker Desktop or a compatible Docker runtime
+
+## Environment
+
+1. Copy `.env.example` to `.env`.
+2. Set required secrets:
+   - `SESSION_SECRET`
+   - `MOBILE_TOKEN_SECRET`
+3. Fill optional integration keys as needed:
+   - `STEAM_API_KEY`
+   - PayPal, Apple, and Google billing settings
+   - S3 storage settings when `FRAME_STORAGE_DRIVER=s3`
+
+Important local defaults:
+
+- app URL: `http://localhost:8080`
+- web dev URL: `http://localhost:5173`
+- Postgres: `postgresql://digitalshelf:digitalshelf@localhost:5433/digitalshelf`
+
+## Install
+
+```bash
+npm install
+```
+
+## Local Development
+
+### 1. Start Postgres
+
+```bash
+docker compose up -d postgres
+```
+
+### 2. Generate Prisma client
+
+```bash
+npm run prisma:generate -w @digital-shelf-saas/server
+```
+
+### 3. Apply local migrations
+
+```bash
+npm run prisma:migrate
+```
+
+### 4. Start the app stack
+
+```bash
+npm run dev
+```
+
+This runs the workspace dev processes through Turbo:
+
+- server: `http://localhost:8080`
+- web: `http://localhost:5173`
+
+The web app proxies `/api` requests to the server in development.
+
+## Tests
+
+Run everything:
+
+```bash
+npm test
+```
+
+Run the main server suite:
+
+```bash
+npm run test -w @digital-shelf-saas/server
+```
+
+Note: server tests require Postgres on `localhost:5433`.
+
+## Build
+
+Run the workspace build:
+
+```bash
+npm run build
+```
+
+The web build is emitted into `apps/saas-server/public/`.
+
+## Production
+
+### Docker image
+
+The production image lives at `apps/saas-server/Dockerfile`.
+
+It:
+
+- installs workspace dependencies
+- generates Prisma client
+- builds packages and apps
+- runs `prisma migrate deploy` on container start
+- starts the SaaS server on port `8080`
+
+### Local production-style compose run
+
+```bash
+docker compose up --build
+```
+
+`docker-compose.yml` starts:
+
+- `postgres`
+- `saas-server`
+
+The server container uses the compose-network Postgres host and reads optional env values from `.env`.
+
+## Useful Commands
+
+```bash
+npm run build
+npm run lint
+npm test
+npm run test -w @digital-shelf-saas/server
+npm run build -w @digital-shelf-saas/server
+npm run prisma:migrate
+npm run prisma:generate -w @digital-shelf-saas/server
+```
+
+## Important Repo Rules
+
+- Treat tenant isolation as a hard requirement.
+- Never trust client-provided `userId` on protected endpoints.
+- Derive identity from session, bearer auth, or device auth.
+- Scope tenant-owned Prisma queries by the resolved tenant.
+- Read `AGENTS.md` and `.agents/skills/tenant-auth-guard/SKILL.md` before auth, route, or DB work.
