@@ -27,7 +27,13 @@ describe('GET/PATCH /api/v1/settings', () => {
 
   it('returns default settings', async () => {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000066` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-settings-default@test.local`,
+        passwordHash: 'test-hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000066`,
+      },
     });
     const session = await auth.createWebSession(user.id);
 
@@ -56,7 +62,13 @@ describe('GET/PATCH /api/v1/settings', () => {
 
   it('patches display settings', async () => {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000067` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-settings-patch@test.local`,
+        passwordHash: 'test-hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000067`,
+      },
     });
     const session = await auth.createWebSession(user.id);
 
