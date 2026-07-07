@@ -37,6 +37,10 @@ export type AccountLoginResponse =
       completionToken: string;
     };
 
+export type SteamRelinkResponse = {
+  relinkUrl: string;
+};
+
 export type BillingCycle = 'monthly' | 'annual';
 
 export type BillingPlanId = 'plan_basic' | 'plan_pro';

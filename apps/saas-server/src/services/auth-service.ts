@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { AccountCompletionToken, PrismaClient, Session, User } from '@prisma/client';
 import { createId } from '@digital-shelf-saas/shared-types';
 import { generateToken, hashToken } from '../lib/crypto.js';
+import { resetSteamLibraryForUser } from './steam-sync-service.js';
 
 export type AuthServiceConfig = {
   sessionTtlDays: number;
@@ -219,9 +220,7 @@ export function createAuthService(prisma: PrismaClient, config: AuthServiceConfi
 
     async relinkSteamAccount(userId: string, steamId64: string): Promise<User> {
       await prisma.$transaction(async (tx) => {
-        await tx.platformAccount.deleteMany({
-          where: { userId, platform: 'steam' },
-        });
+        await resetSteamLibraryForUser(tx, userId);
         await tx.user.update({
           where: { id: userId },
           data: {

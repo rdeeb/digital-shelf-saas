@@ -16,7 +16,7 @@ import {
   getBillingStatusPath,
   getDevicesPath,
 } from './DevicesPage';
-import { getSettingsPath, buildSettingsPatch } from './SettingsPage';
+import { getSettingsPath, buildSettingsPatch, getSteamRelinkPath } from './SettingsPage';
 
 const pageDir = dirname(fileURLToPath(import.meta.url));
 
@@ -84,6 +84,7 @@ describe('SaaS page endpoints', () => {
 
   it('uses relative v1 settings endpoints and patch shape', () => {
     expect(getSettingsPath()).toBe('/settings');
+    expect(getSteamRelinkPath()).toBe('/api/auth/account/steam-relink');
     expect(buildSettingsPatch({ showPublisher: true })).toEqual({
       display: { showPublisher: true },
     });
@@ -95,5 +96,11 @@ describe('SaaS page endpoints', () => {
       expect(source).not.toContain('/api/admin');
       expect(source).not.toMatch(/Steam API key|apiKeyConfigured/);
     }
+  });
+
+  it('includes destructive Steam relink copy on settings', () => {
+    const source = pageSource('SettingsPage.tsx');
+    expect(source).toContain('delete your current synced library');
+    expect(source).toContain('Replace Steam account');
   });
 });

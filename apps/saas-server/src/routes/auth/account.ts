@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAuthServiceFromEnv } from '../../lib/auth-deps.js';
+import { registerAuthPlugin } from '../../middleware/auth.js';
 import { setSessionCookie } from '../../lib/session.js';
 
 const signupSchema = z.object({
@@ -12,6 +13,10 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
 });
+
+export function buildSteamRelinkUrl(token: string): string {
+  return `/api/auth/steam/login?purpose=steam_relink&token=${encodeURIComponent(token)}`;
+}
 
 export async function registerAccountAuthRoutes(app: FastifyInstance): Promise<void> {
   const auth = createAuthServiceFromEnv();
@@ -86,5 +91,16 @@ export async function registerAccountAuthRoutes(app: FastifyInstance): Promise<v
       }
       throw error;
     }
+  });
+
+  await app.register(async (protectedApp) => {
+    await registerAuthPlugin(protectedApp, auth);
+
+    protectedApp.post('/api/auth/account/steam-relink', async (request, reply) => {
+      const token = await auth.createCompletionToken(request.userId!, 'steam_relink');
+      return reply.send({
+        relinkUrl: buildSteamRelinkUrl(token),
+      });
+    });
   });
 }

@@ -2,10 +2,19 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { PrismaClient } from '@prisma/client';
 import { buildApp } from '../../app.js';
+import { SESSION_COOKIE } from '../../lib/session.js';
+import { createAuthService } from '../../services/auth-service.js';
+import { createId } from '@digital-shelf-saas/shared-types';
 
 describe('account auth routes', () => {
   let app: FastifyInstance;
   const prisma = new PrismaClient();
+  const auth = createAuthService(prisma, {
+    sessionTtlDays: 30,
+    mobileAccessTtlMinutes: 60,
+    mobileRefreshTtlDays: 30,
+    mobileTokenSecret: 'test-mobile-secret-32-chars-min!!!',
+  });
 
   beforeAll(async () => {
     app = await buildApp({ logger: false });
@@ -64,5 +73,33 @@ describe('account auth routes', () => {
       where: { user: { email: 'needs-steam@example.com' } },
     });
     await prisma.user.deleteMany({ where: { email: 'needs-steam@example.com' } });
+  });
+
+  it('issues a steam relink completion token from settings flow', async () => {
+    const user = await prisma.user.create({
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-active@example.com`,
+        passwordHash: 'hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000321`,
+      },
+    });
+    const session = await auth.createWebSession(user.id);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/account/steam-relink',
+      cookies: { [SESSION_COOKIE]: session.id },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      relinkUrl: expect.stringContaining('/api/auth/steam/login?purpose=steam_relink'),
+    });
+
+    await prisma.session.deleteMany({ where: { userId: user.id } });
+    await prisma.accountCompletionToken.deleteMany({ where: { userId: user.id } });
+    await prisma.user.delete({ where: { id: user.id } });
   });
 });
