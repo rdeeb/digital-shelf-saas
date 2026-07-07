@@ -8,7 +8,7 @@ import { SteamError } from '@digital-shelf-saas/platform-steam';
 import { createId } from '@digital-shelf-saas/shared-types';
 import { clearAllActiveSyncRuns } from '../lib/sync-tracker.js';
 import { createMetadataService } from './metadata-service.js';
-import { createSteamSyncService } from './steam-sync-service.js';
+import { createSteamSyncService, resetSteamLibraryForUser } from './steam-sync-service.js';
 
 const prisma = new PrismaClient();
 
@@ -52,7 +52,13 @@ function createTestMetadataService() {
 
 async function createTestUser() {
   return prisma.user.create({
-    data: { id: createId('user'), steamId64: `${Date.now()}76561198000000000` },
+    data: {
+      id: createId('user'),
+      email: `${Date.now()}-sync@example.com`,
+      passwordHash: 'hash',
+      activationState: 'active',
+      steamId64: `${Date.now()}76561198000000000`,
+    },
   });
 }
 
@@ -188,5 +194,69 @@ describe('steam-sync-service', () => {
     expect(syncRun.status).toBe('completed');
     expect(syncRun.metadataQueued).toBe(2);
     expect(enrichGames).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets steam-derived library data without deleting subscriptions', async () => {
+    const user = await prisma.user.create({
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-reset@example.com`,
+        passwordHash: 'hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000456`,
+        subscription: {
+          create: {
+            id: createId('subscription'),
+            planId: 'plan_basic',
+            provider: 'paypal',
+            status: 'active',
+            billingCycle: 'monthly',
+          },
+        },
+      },
+    });
+    const platformAccount = await prisma.platformAccount.create({
+      data: {
+        id: createId('platformAccount'),
+        userId: user.id,
+        platform: 'steam',
+        externalId: user.steamId64!,
+      },
+    });
+    const game = await prisma.game.create({
+      data: {
+        id: createId('game'),
+        platform: 'steam',
+        externalId: `${Date.now()}-game`,
+        name: 'Reset Me',
+        developers: [],
+        publishers: [],
+      },
+    });
+    await prisma.userGame.create({
+      data: {
+        id: createId('userGame'),
+        gameId: game.id,
+        platformAccountId: platformAccount.id,
+        hidden: false,
+        favorite: false,
+      },
+    });
+    await prisma.syncRun.create({
+      data: {
+        id: createId('sync'),
+        platformAccountId: platformAccount.id,
+        status: 'completed',
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+
+    await resetSteamLibraryForUser(prisma, user.id);
+
+    expect(await prisma.platformAccount.count({ where: { userId: user.id, platform: 'steam' } })).toBe(0);
+    expect(await prisma.userGame.count()).toBe(0);
+    expect(await prisma.syncRun.count()).toBe(0);
+    expect(await prisma.subscription.findUnique({ where: { userId: user.id } })).not.toBeNull();
   });
 });

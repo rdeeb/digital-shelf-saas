@@ -13,7 +13,13 @@ describe('user-settings-service', () => {
 
   it('resolveDisplayDefaults returns hardcoded defaults', async () => {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000010` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-010@test.local`,
+        passwordHash: 'test-hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000010`,
+      },
     });
 
     const defaults = await settings.resolveDisplayDefaults(user.id);
@@ -31,7 +37,13 @@ describe('user-settings-service', () => {
 
   it('resolveDisplayDefaults returns stored value after setSetting', async () => {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000011` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-011@test.local`,
+        passwordHash: 'test-hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000011`,
+      },
     });
 
     await settings.setSetting(user.id, USER_SETTING_KEYS.DISPLAY_GAMES_PER_FRAME, '5');
@@ -47,7 +59,13 @@ describe('user-settings-service', () => {
       DEFAULT_DISPLAY_GAMES_PER_FRAME: '7',
     });
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000012` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-012@test.local`,
+        passwordHash: 'test-hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000012`,
+      },
     });
 
     const defaults = await envSettings.resolveDisplayDefaults(user.id);

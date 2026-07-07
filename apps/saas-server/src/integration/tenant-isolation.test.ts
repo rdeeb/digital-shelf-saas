@@ -44,7 +44,13 @@ async function cleanDb() {
 
 async function seedUser(suffix: string) {
   const user = await prisma.user.create({
-    data: { id: createId('user'), steamId64: `${Date.now()}76561198000000${suffix}` },
+    data: {
+      id: createId('user'),
+      email: `${Date.now()}-${suffix}@test.local`,
+      passwordHash: 'test-hash',
+      activationState: 'active',
+      steamId64: `${Date.now()}76561198000000${suffix}`,
+    },
   });
   await prisma.subscription.create({
     data: {

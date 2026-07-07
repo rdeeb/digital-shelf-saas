@@ -21,6 +21,7 @@ type SubscriptionAccess = 'loading' | 'active' | 'inactive' | 'error';
 type ProtectedAccessInput = {
   authenticated: boolean;
   subscriptionAccess: SubscriptionAccess;
+  activationState: 'account_created' | 'pending_activation' | 'active' | null;
   pathname: string;
 };
 
@@ -55,9 +56,11 @@ export function resolveProtectedRedirect({
 export function resolveProtectedAccess({
   authenticated,
   subscriptionAccess,
+  activationState,
   pathname,
 }: ProtectedAccessInput): ProtectedAccessResult {
   if (!authenticated) return { kind: 'redirect', to: '/login' };
+  if (activationState !== 'active') return { kind: 'redirect', to: '/login' };
   if (subscriptionAccess === 'loading') return { kind: 'loading' };
   if (subscriptionAccess === 'error') return { kind: 'error' };
   if (subscriptionAccess === 'inactive' && !isSubscribePath(pathname)) {
@@ -84,6 +87,9 @@ export function SubscriptionGate() {
   const [authenticated, setAuthenticated] = useState<boolean | null>(null);
   const [subscriptionAccess, setSubscriptionAccess] = useState<SubscriptionAccess>('loading');
   const [salesFlags, setSalesFlags] = useState<BillingSalesFlags | null>(null);
+  const [activationState, setActivationState] = useState<
+    'account_created' | 'pending_activation' | 'active' | null
+  >(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,9 +98,13 @@ export function SubscriptionGate() {
       setAuthenticated(null);
       setSubscriptionAccess('loading');
       setSalesFlags(null);
+      setActivationState(null);
 
       try {
-        await apiGet<AuthMeResponse>('/auth/me');
+        const authMe = await apiGet<AuthMeResponse>('/auth/me');
+        if (!cancelled) {
+          setActivationState(authMe.user.activationState);
+        }
       } catch {
         if (!cancelled) {
           setAuthenticated(false);
@@ -141,6 +151,7 @@ export function SubscriptionGate() {
   const access = resolveProtectedAccess({
     authenticated,
     subscriptionAccess,
+    activationState,
     pathname: location.pathname,
   });
 

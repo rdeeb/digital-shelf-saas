@@ -1,7 +1,8 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import type { PrismaClient, Session, User } from '@prisma/client';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
+import type { AccountCompletionToken, PrismaClient, Session, User } from '@prisma/client';
 import { createId } from '@digital-shelf-saas/shared-types';
 import { generateToken, hashToken } from '../lib/crypto.js';
+import { resetSteamLibraryForUser } from './steam-sync-service.js';
 
 export type AuthServiceConfig = {
   sessionTtlDays: number;
@@ -16,6 +17,16 @@ type PendingAuthCode = {
 };
 
 const pendingAuthCodes = new Map<string, PendingAuthCode>();
+
+export type PasswordLoginResult =
+  | {
+      kind: 'authenticated';
+      user: User;
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    }
+  | { kind: 'completion_required'; userId: string; completionToken: string };
 
 function sessionExpiresAt(ttlDays: number): Date {
   return new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000);
@@ -53,12 +64,37 @@ function verifyAccessToken(token: string, secret: string): string | null {
   }
 }
 
+function hashPasswordValue(password: string): string {
+  return createHash('sha256').update(password).digest('hex');
+}
+
 export function createAuthService(prisma: PrismaClient, config: AuthServiceConfig) {
   return {
+    async hashPassword(password: string): Promise<string> {
+      return hashPasswordValue(password);
+    },
+
+    async createPendingUser(email: string, password: string): Promise<User> {
+      return prisma.user.create({
+        data: {
+          id: createId('user'),
+          email,
+          passwordHash: hashPasswordValue(password),
+          activationState: 'pending_activation',
+        },
+      });
+    },
+
     async upsertUserBySteamId64(steamId64: string): Promise<User> {
       return prisma.user.upsert({
         where: { steamId64 },
-        create: { id: createId('user'), steamId64 },
+        create: {
+          id: createId('user'),
+          email: `${steamId64}@steam.placeholder.local`,
+          passwordHash: 'steam-only-migrated-account',
+          activationState: 'active',
+          steamId64,
+        },
         update: {},
       });
     },
@@ -133,6 +169,91 @@ export function createAuthService(prisma: PrismaClient, config: AuthServiceConfi
       }
       await prisma.refreshToken.delete({ where: { id: existing.id } });
       return this.createMobileTokens(existing.userId);
+    },
+
+    async createCompletionToken(userId: string, purpose: string): Promise<string> {
+      const token = generateToken();
+      await prisma.accountCompletionToken.create({
+        data: {
+          id: createId('session'),
+          userId,
+          purpose,
+          tokenHash: hashToken(token),
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+        },
+      });
+      return token;
+    },
+
+    async assertCompletionTokenAvailable(token: string, purpose: string): Promise<AccountCompletionToken | null> {
+      const existing = await prisma.accountCompletionToken.findUnique({
+        where: { tokenHash: hashToken(token) },
+      });
+      if (!existing || existing.purpose !== purpose || existing.consumedAt || existing.expiresAt < new Date()) {
+        return null;
+      }
+      return existing;
+    },
+
+    async consumeCompletionToken(token: string, purpose: string): Promise<AccountCompletionToken | null> {
+      const existing = await prisma.accountCompletionToken.findUnique({
+        where: { tokenHash: hashToken(token) },
+      });
+      if (!existing || existing.purpose !== purpose || existing.consumedAt || existing.expiresAt < new Date()) {
+        return null;
+      }
+      return prisma.accountCompletionToken.update({
+        where: { id: existing.id },
+        data: { consumedAt: new Date() },
+      });
+    },
+
+    async activateAccountWithSteam(userId: string, steamId64: string): Promise<User> {
+      return prisma.user.update({
+        where: { id: userId },
+        data: {
+          steamId64,
+          activationState: 'active',
+        },
+      });
+    },
+
+    async relinkSteamAccount(userId: string, steamId64: string): Promise<User> {
+      await prisma.$transaction(async (tx) => {
+        await resetSteamLibraryForUser(tx, userId);
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            steamId64,
+            activationState: 'active',
+          },
+        });
+      });
+
+      return prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    },
+
+    async loginWithPassword(email: string, password: string): Promise<PasswordLoginResult> {
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user || user.passwordHash !== hashPasswordValue(password)) {
+        throw new Error('INVALID_CREDENTIALS');
+      }
+
+      if (!user.steamId64 || user.activationState !== 'active') {
+        const completionToken = await this.createCompletionToken(user.id, 'account_activation');
+        return {
+          kind: 'completion_required',
+          userId: user.id,
+          completionToken,
+        };
+      }
+
+      const tokens = await this.createMobileTokens(user.id);
+      return {
+        kind: 'authenticated',
+        user,
+        ...tokens,
+      };
     },
 
     createAuthCode(userId: string): string {

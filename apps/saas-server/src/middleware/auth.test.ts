@@ -33,7 +33,13 @@ describe('auth middleware', () => {
 
   it('accepts session cookie', async () => {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000077` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-cookie@test.local`,
+        passwordHash: 'test-hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000077`,
+      },
     });
     const session = await auth.createWebSession(user.id);
 
@@ -52,7 +58,13 @@ describe('auth middleware', () => {
 
   it('accepts bearer token', async () => {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000066` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-bearer@test.local`,
+        passwordHash: 'test-hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000066`,
+      },
     });
     const tokens = await auth.createMobileTokens(user.id);
 

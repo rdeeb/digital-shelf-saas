@@ -27,7 +27,13 @@ describe('billing routes', () => {
 
   it('GET /api/v1/billing/plans returns plans and sales flags', async () => {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000033` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-plans@example.com`,
+        passwordHash: 'hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000033`,
+      },
     });
     const session = await auth.createWebSession(user.id);
 
@@ -51,7 +57,13 @@ describe('billing routes', () => {
 
   it('GET /api/v1/billing/status includes device limit fields', async () => {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000034` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-status@example.com`,
+        passwordHash: 'hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000034`,
+      },
     });
     await prisma.subscription.create({
       data: {
@@ -90,6 +102,33 @@ describe('billing routes', () => {
     await prisma.session.deleteMany({ where: { userId: user.id } });
     await prisma.device.deleteMany({ where: { userId: user.id } });
     await prisma.subscription.delete({ where: { userId: user.id } });
+    await prisma.user.delete({ where: { id: user.id } });
+  });
+
+  it('rejects subscription creation when steam is not linked', async () => {
+    const user = await prisma.user.create({
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-no-steam@example.com`,
+        passwordHash: 'hash',
+        activationState: 'pending_activation',
+      },
+    });
+    const session = await auth.createWebSession(user.id);
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/v1/billing/paypal/subscribe',
+      cookies: { [SESSION_COOKIE]: session.id },
+      payload: { planId: 'plan_basic', billingCycle: 'monthly' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: { code: 'STEAM_LINK_REQUIRED' },
+    });
+
+    await prisma.session.deleteMany({ where: { userId: user.id } });
     await prisma.user.delete({ where: { id: user.id } });
   });
 });

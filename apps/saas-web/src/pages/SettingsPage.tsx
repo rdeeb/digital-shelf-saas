@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { apiGet, apiPatch } from '../api/client';
-import type { UserSettingsResponse } from '../api/types';
+import { apiGet, apiPatch, apiPost } from '../api/client';
+import type { SteamRelinkResponse, UserSettingsResponse } from '../api/types';
 import { Banner } from '../components/Banner';
 
 type DisplaySettingsPatch = Partial<UserSettingsResponse['display']>;
@@ -13,6 +13,10 @@ export function buildSettingsPatch(display: DisplaySettingsPatch): {
   display: DisplaySettingsPatch;
 } {
   return { display };
+}
+
+export function getSteamRelinkPath(): string {
+  return '/api/auth/account/steam-relink';
 }
 
 export function SettingsPage() {
@@ -52,6 +56,21 @@ export function SettingsPage() {
       setBanner({
         tone: 'error',
         message: err instanceof Error ? err.message : 'Save failed.',
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startSteamRelink() {
+    setBusy(true);
+    try {
+      const body = await apiPost<SteamRelinkResponse>(getSteamRelinkPath());
+      window.location.assign(body.relinkUrl);
+    } catch (err) {
+      setBanner({
+        tone: 'error',
+        message: err instanceof Error ? err.message : 'Steam relink failed.',
       });
     } finally {
       setBusy(false);
@@ -145,6 +164,22 @@ export function SettingsPage() {
           />
           Avoid recent repeats
         </label>
+      </div>
+
+      <div className="space-y-3 rounded border border-red-200 bg-red-50 p-4 text-sm">
+        <h2 className="font-medium text-red-900">Steam account</h2>
+        <p className="text-red-800">
+          Changing Steam will delete your current synced library and rebuild it from the new
+          account. Your subscription will stay active.
+        </p>
+        <button
+          type="button"
+          onClick={() => void startSteamRelink()}
+          disabled={busy}
+          className="rounded border border-red-300 px-3 py-2 font-medium text-red-900 disabled:opacity-60"
+        >
+          Replace Steam account
+        </button>
       </div>
     </section>
   );

@@ -54,6 +54,17 @@ export interface StartSyncResult {
   status: 'pending' | 'running' | 'completed' | 'failed';
 }
 
+type SteamLibraryResetDb = Pick<PrismaClient, 'platformAccount'>;
+
+export async function resetSteamLibraryForUser(
+  prisma: SteamLibraryResetDb,
+  userId: string,
+): Promise<void> {
+  await prisma.platformAccount.deleteMany({
+    where: { userId, platform: 'steam' },
+  });
+}
+
 export function createSteamSyncService(
   prisma: PrismaClient,
   config: SteamSyncServiceConfig,
@@ -71,6 +82,9 @@ export function createSteamSyncService(
 
   async function resolveSteamId64(userId: string): Promise<string> {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    if (!user.steamId64) {
+      throw new SteamError('STEAM_API_ERROR', 'Steam account is not linked for this user.');
+    }
     return user.steamId64;
   }
 

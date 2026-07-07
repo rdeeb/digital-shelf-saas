@@ -29,6 +29,9 @@ describe('GET /api/v1/auth/me', () => {
     const user = await prisma.user.create({
       data: {
         id: createId('user'),
+        email: `${Date.now()}-auth@example.com`,
+        passwordHash: 'hash',
+        activationState: 'active',
         steamId64: `${Date.now()}76561198000000055`,
         displayName: 'Test User',
       },
@@ -45,7 +48,9 @@ describe('GET /api/v1/auth/me', () => {
     expect(response.json()).toEqual({
       user: {
         id: user.id,
+        email: user.email,
         steamId64: user.steamId64,
+        activationState: 'active',
         displayName: 'Test User',
         avatarUrl: null,
       },
@@ -57,7 +62,12 @@ describe('GET /api/v1/auth/me', () => {
 
   it('GET /api/v1/onboarding/status returns subscribe next step', async () => {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000044` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-onboarding@example.com`,
+        passwordHash: 'hash',
+        activationState: 'pending_activation',
+      },
     });
     const session = await auth.createWebSession(user.id);
 
@@ -73,6 +83,7 @@ describe('GET /api/v1/auth/me', () => {
       hasSyncedLibrary: false,
       hasClaimedDevice: false,
       nextStep: 'subscribe',
+      activationState: 'pending_activation',
     });
 
     await prisma.session.deleteMany({ where: { userId: user.id } });

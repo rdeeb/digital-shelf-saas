@@ -17,6 +17,14 @@ function buildOpenIdUrls(publicUrl: string) {
   };
 }
 
+function buildReturnTo(publicUrl: string, params: Record<string, string>): string {
+  const callback = new URL('/api/auth/steam/callback', publicUrl);
+  for (const [key, value] of Object.entries(params)) {
+    callback.searchParams.set(key, value);
+  }
+  return callback.toString();
+}
+
 function queryToRecord(query: Record<string, unknown>): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(query)) {
@@ -52,6 +60,18 @@ async function resolvePostLoginRedirect(userId: string): Promise<string> {
   return '/dashboard';
 }
 
+function buildMobileReturnUrl(tokens: {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}): string {
+  const url = new URL('digitalshelf://auth/callback');
+  url.searchParams.set('accessToken', tokens.accessToken);
+  url.searchParams.set('refreshToken', tokens.refreshToken);
+  url.searchParams.set('expiresIn', String(tokens.expiresIn));
+  return url.toString();
+}
+
 export async function registerSteamAuthRoutes(
   app: FastifyInstance,
   deps: { auth?: AuthService } = {},
@@ -69,24 +89,60 @@ export async function registerSteamAuthRoutes(
       });
     }
 
-    const client = (request.query as { client?: string }).client;
+    const query = request.query as { client?: string; token?: string; purpose?: string };
+    const client = query.client;
     const { realm, returnTo } = buildOpenIdUrls(env.SERVER_PUBLIC_URL);
-    const effectiveReturnTo =
-      client === 'mobile'
-        ? returnTo.replace('/callback', '/mobile-callback')
-        : returnTo;
+    let effectiveReturnTo = client === 'mobile' ? returnTo.replace('/callback', '/mobile-callback') : returnTo;
+
+    if (query.token && query.purpose) {
+      const tokenOk = await auth.assertCompletionTokenAvailable(query.token, query.purpose);
+      if (!tokenOk) {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_COMPLETION_TOKEN',
+            message: 'Completion token is invalid or expired.',
+          },
+        });
+      }
+      effectiveReturnTo = buildReturnTo(env.SERVER_PUBLIC_URL, {
+        purpose: query.purpose,
+        token: query.token,
+      });
+    }
+
     const loginUrl = buildSteamOpenIdLoginUrl({ returnTo: effectiveReturnTo, realm });
     return reply.redirect(loginUrl);
   });
 
   app.get('/api/auth/steam/callback', async (request, reply) => {
     try {
+      const query = request.query as Record<string, unknown>;
+      const purpose = typeof query.purpose === 'string' ? query.purpose : null;
+      const token = typeof query.token === 'string' ? query.token : null;
       const { realm, returnTo } = buildOpenIdUrls(env.SERVER_PUBLIC_URL);
+      const effectiveReturnTo =
+        token && purpose
+          ? buildReturnTo(env.SERVER_PUBLIC_URL, { purpose, token })
+          : returnTo;
       const steamId64 = await verifySteamOpenIdCallback({
-        query: queryToRecord(request.query as Record<string, unknown>),
-        returnTo,
+        query: queryToRecord(query),
+        returnTo: effectiveReturnTo,
         realm,
       });
+
+      if (token && purpose) {
+        const pending = await auth.consumeCompletionToken(token, purpose);
+        if (!pending) {
+          return reply.redirect('/login?error=INVALID_COMPLETION_TOKEN');
+        }
+
+        const user =
+          purpose === 'steam_relink'
+            ? await auth.relinkSteamAccount(pending.userId, steamId64)
+            : await auth.activateAccountWithSteam(pending.userId, steamId64);
+        const tokens = await auth.createMobileTokens(user.id);
+        return reply.redirect(buildMobileReturnUrl(tokens));
+      }
 
       const user = await auth.upsertUserBySteamId64(steamId64);
       const session = await auth.createWebSession(user.id);

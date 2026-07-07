@@ -3,6 +3,7 @@ export class ApiError extends Error {
     readonly code: string,
     message: string,
     readonly status: number,
+    readonly body: unknown,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -26,7 +27,7 @@ async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const code = body?.error?.code ?? 'REQUEST_FAILED';
     const message = body?.error?.message ?? `Request failed (${response.status})`;
-    throw new ApiError(code, message, response.status);
+    throw new ApiError(code, message, response.status, body);
   }
   return body as T;
 }

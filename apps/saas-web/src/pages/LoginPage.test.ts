@@ -8,6 +8,12 @@ describe('LoginPage helpers', () => {
     );
   });
 
+  it('shows account completion message when login requires steam linking', () => {
+    expect(getLoginErrorMessage('ACCOUNT_COMPLETION_REQUIRED')).toBe(
+      'Finish linking your Steam account to continue.',
+    );
+  });
+
   it('shows a generic sign-in failure for unknown auth errors', () => {
     expect(getLoginErrorMessage('UNEXPECTED')).toBe('Sign-in failed. Please try again.');
   });

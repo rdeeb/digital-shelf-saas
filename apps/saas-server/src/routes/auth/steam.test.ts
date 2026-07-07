@@ -26,47 +26,99 @@ describe('Steam auth routes', () => {
     await prisma.$disconnect();
   });
 
-  it('GET /api/auth/steam/callback sets session cookie and redirects', async () => {
-    vi.spyOn(platformSteam, 'verifySteamOpenIdCallback').mockResolvedValue('76561198000000099');
+  it('consumes completion token and activates account on steam callback', async () => {
+    const steamId64 = `${Date.now()}76561198000000099`;
+    const user = await prisma.user.create({
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-pending-steam@example.com`,
+        passwordHash: 'hash',
+        activationState: 'pending_activation',
+      },
+    });
+    const token = await auth.createCompletionToken(user.id, 'account_activation');
+
+    vi.spyOn(platformSteam, 'verifySteamOpenIdCallback').mockResolvedValue(steamId64);
 
     const response = await app.inject({
       method: 'GET',
-      url: '/api/auth/steam/callback?openid.mode=id_res',
+      url: `/api/auth/steam/callback?purpose=account_activation&token=${encodeURIComponent(token)}&openid.mode=id_res`,
     });
 
     expect(response.statusCode).toBe(302);
-    const setCookie = response.headers['set-cookie'];
-    const cookieHeader = Array.isArray(setCookie) ? setCookie.join(';') : String(setCookie ?? '');
-    expect(cookieHeader).toContain('ds_session=');
-    expect(response.headers.location).toBe('/subscribe');
+    expect(response.headers.location).toContain('digitalshelf://auth/callback');
 
-    await prisma.session.deleteMany({
-      where: { user: { steamId64: '76561198000000099' } },
+    await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+    await prisma.accountCompletionToken.deleteMany({
+      where: { userId: user.id },
     });
-    await prisma.user.deleteMany({ where: { steamId64: '76561198000000099' } });
+    await prisma.user.delete({ where: { id: user.id } });
     vi.restoreAllMocks();
   });
 
-  it('POST /api/auth/steam/exchange returns mobile tokens', async () => {
+  it('relink keeps subscription and clears steam-derived library data', async () => {
+    const nextSteamId64 = `${Date.now()}76561198000000777`;
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000088` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-relink@example.com`,
+        passwordHash: 'hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000088`,
+      },
     });
-    const code = auth.createAuthCode(user.id);
+    const platformAccount = await prisma.platformAccount.create({
+      data: {
+        id: createId('platformAccount'),
+        userId: user.id,
+        platform: 'steam',
+        externalId: user.steamId64!,
+      },
+    });
+    await prisma.subscription.create({
+      data: {
+        id: createId('subscription'),
+        userId: user.id,
+        planId: 'plan_basic',
+        provider: 'paypal',
+        status: 'active',
+        billingCycle: 'monthly',
+      },
+    });
+    await prisma.syncRun.create({
+      data: {
+        id: createId('sync'),
+        platformAccountId: platformAccount.id,
+        status: 'completed',
+        startedAt: new Date(),
+        completedAt: new Date(),
+      },
+    });
+    const token = await auth.createCompletionToken(user.id, 'steam_relink');
+
+    vi.spyOn(platformSteam, 'verifySteamOpenIdCallback').mockResolvedValue(nextSteamId64);
 
     const response = await app.inject({
-      method: 'POST',
-      url: '/api/auth/steam/exchange',
-      payload: { code },
+      method: 'GET',
+      url: `/api/auth/steam/callback?purpose=steam_relink&token=${encodeURIComponent(token)}&openid.mode=id_res`,
     });
 
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      accessToken: expect.any(String),
-      refreshToken: expect.any(String),
-      expiresIn: expect.any(Number),
-    });
+    expect(response.statusCode).toBe(302);
+    expect(await prisma.subscription.findUnique({ where: { userId: user.id } })).not.toBeNull();
+    expect(
+      await prisma.syncRun.count({
+        where: {
+          platformAccount: {
+            userId: user.id,
+          },
+        },
+      }),
+    ).toBe(0);
 
     await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+    await prisma.accountCompletionToken.deleteMany({ where: { userId: user.id } });
+    await prisma.subscription.deleteMany({ where: { userId: user.id } });
     await prisma.user.delete({ where: { id: user.id } });
+    vi.restoreAllMocks();
   });
 });

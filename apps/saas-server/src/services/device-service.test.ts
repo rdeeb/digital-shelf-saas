@@ -30,7 +30,13 @@ describe('device-service tenant isolation', () => {
 
   async function seedUserWithSub(steamSuffix: string) {
     const user = await prisma.user.create({
-      data: { id: createId('user'), steamId64: `${Date.now()}76561198000000${steamSuffix}` },
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-${steamSuffix}@test.local`,
+        passwordHash: 'test-hash',
+        activationState: 'active',
+        steamId64: `${Date.now()}76561198000000${steamSuffix}`,
+      },
     });
     await prisma.subscription.create({
       data: {

@@ -23,6 +23,16 @@ export async function registerV1BillingRoutes(app: FastifyInstance): Promise<voi
   });
   const entitlement = createEntitlementService(prisma);
 
+  async function assertSteamLinked(userId: string): Promise<void> {
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { steamId64: true },
+    });
+    if (!user.steamId64) {
+      throw new BillingError('STEAM_LINK_REQUIRED', 'Link your Steam account before subscribing.');
+    }
+  }
+
   await app.register(
     async (protectedApp) => {
       await registerAuthPlugin(protectedApp, auth);
@@ -77,6 +87,7 @@ export async function registerV1BillingRoutes(app: FastifyInstance): Promise<voi
 
       protectedApp.post('/billing/paypal/subscribe', async (request, reply) => {
         try {
+          await assertSteamLinked(request.userId!);
           await salesFlags.assertNewSalesAllowed();
           const parsed = subscribeSchema.safeParse(request.body);
           if (!parsed.success) {
