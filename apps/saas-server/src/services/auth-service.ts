@@ -184,6 +184,16 @@ export function createAuthService(prisma: PrismaClient, config: AuthServiceConfi
       return token;
     },
 
+    async assertCompletionTokenAvailable(token: string, purpose: string): Promise<AccountCompletionToken | null> {
+      const existing = await prisma.accountCompletionToken.findUnique({
+        where: { tokenHash: hashToken(token) },
+      });
+      if (!existing || existing.purpose !== purpose || existing.consumedAt || existing.expiresAt < new Date()) {
+        return null;
+      }
+      return existing;
+    },
+
     async consumeCompletionToken(token: string, purpose: string): Promise<AccountCompletionToken | null> {
       const existing = await prisma.accountCompletionToken.findUnique({
         where: { tokenHash: hashToken(token) },
@@ -195,6 +205,33 @@ export function createAuthService(prisma: PrismaClient, config: AuthServiceConfi
         where: { id: existing.id },
         data: { consumedAt: new Date() },
       });
+    },
+
+    async activateAccountWithSteam(userId: string, steamId64: string): Promise<User> {
+      return prisma.user.update({
+        where: { id: userId },
+        data: {
+          steamId64,
+          activationState: 'active',
+        },
+      });
+    },
+
+    async relinkSteamAccount(userId: string, steamId64: string): Promise<User> {
+      await prisma.$transaction(async (tx) => {
+        await tx.platformAccount.deleteMany({
+          where: { userId, platform: 'steam' },
+        });
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            steamId64,
+            activationState: 'active',
+          },
+        });
+      });
+
+      return prisma.user.findUniqueOrThrow({ where: { id: userId } });
     },
 
     async loginWithPassword(email: string, password: string): Promise<PasswordLoginResult> {
