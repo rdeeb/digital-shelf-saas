@@ -1,0 +1,265 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id
+  steamId64   String   @unique
+  displayName String?
+  avatarUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sessions       Session[]
+  refreshTokens  RefreshToken[]
+  platformAccounts PlatformAccount[]
+  devices        Device[]
+  subscription   Subscription?
+  userSettings   UserSetting[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String   @id
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Plan {
+  id                    String @id
+  name                  String
+  deviceLimit           Int?
+  paypalPlanIdMonthly   String
+  paypalPlanIdAnnual    String
+  appleProductIdMonthly String
+  appleProductIdAnnual  String
+  googleProductIdMonthly String
+  googleProductIdAnnual  String
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                     String    @id
+  userId                 String    @unique
+  planId                 String
+  provider               String
+  status                 String
+  billingCycle           String
+  providerSubscriptionId String?   @unique
+  providerProductId      String?
+  currentPeriodStart     DateTime?
+  currentPeriodEnd       DateTime?
+  cancelledAt            DateTime?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  user   User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan   Plan                @relation(fields: [planId], references: [id])
+  events SubscriptionEvent[]
+
+  @@map("subscriptions")
+}
+
+model SubscriptionEvent {
+  id             String   @id
+  subscriptionId String?
+  userId         String
+  provider       String
+  eventType      String
+  payload        Json
+  createdAt      DateTime @default(now())
+
+  subscription Subscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@map("subscription_events")
+}
+
+model UserSetting {
+  userId    String
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@map("user_settings")
+}
+
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+model PlatformAccount {
+  id          String   @id
+  userId      String
+  platform    String
+  externalId  String
+  displayName String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userGames UserGame[]
+  syncRuns  SyncRun[]
+
+  @@unique([platform, externalId])
+  @@unique([userId, platform])
+  @@map("platform_accounts")
+}
+
+model Game {
+  id                String    @id
+  platform          String
+  externalId        String
+  name              String
+  developers        Json      @default("[]")
+  publishers        Json      @default("[]")
+  capsuleUrl        String?
+  headerImageUrl    String?
+  metadataJson      Json?
+  metadataUpdatedAt DateTime?
+  accentColor       String?
+  spineTextColor    String?
+  spineArtPath      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  userGames UserGame[]
+
+  @@unique([platform, externalId])
+  @@map("games")
+}
+
+model UserGame {
+  id                String    @id
+  gameId            String
+  platformAccountId String
+  playtimeMinutes   Int?
+  hidden            Boolean   @default(false)
+  favorite          Boolean   @default(false)
+  lastDisplayedAt   DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  game            Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  platformAccount PlatformAccount @relation(fields: [platformAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([platformAccountId, gameId])
+  @@map("user_games")
+}
+
+model Device {
+  id                 String    @id
+  userId             String?
+  name               String
+  tokenHash          String
+  hardwareId         String    @unique
+  pendingToken       String?
+  claimCode          String?
+  claimCodeExpiresAt DateTime?
+  screenWidth        Int       @default(172)
+  screenHeight       Int       @default(320)
+  firmwareVersion    String?
+  lastSeenAt         DateTime?
+  lastWifiRssi       Int?
+  lastFreeHeap       Int?
+  lastFrameId        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user   User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  config DeviceConfig?
+  frames DisplayFrame[]
+
+  @@index([userId])
+  @@map("devices")
+}
+
+model DeviceConfig {
+  deviceId                String   @id
+  gamesPerFrame           Int      @default(3)
+  rotationIntervalSeconds Int      @default(300)
+  selectionMode           String   @default("random")
+  showPublisher           Boolean  @default(true)
+  showPlaytime            Boolean  @default(false)
+  avoidRecentRepeats      Boolean  @default(true)
+  updatedAt               DateTime @updatedAt
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@map("device_configs")
+}
+
+model DisplayFrame {
+  id          String   @id
+  deviceId    String
+  format      String
+  width       Int
+  height      Int
+  storagePath String
+  gameIds     Json
+  generatedAt DateTime
+  createdAt   DateTime @default(now())
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, generatedAt])
+  @@map("display_frames")
+}
+
+model SyncRun {
+  id                String    @id
+  platformAccountId String
+  status            String
+  startedAt         DateTime
+  completedAt       DateTime?
+  gamesDiscovered   Int?
+  gamesAdded        Int?
+  gamesUpdated      Int?
+  errorCode         String?
+  errorMessage      String?
+  metadataQueued    Int?
+  metadataEnriched  Int?
+  metadataSkipped   Int?
+  metadataFailed    Int?
+  createdAt         DateTime  @default(now())
+
+  platformAccount PlatformAccount @relation(fields: [platformAccountId], references: [id], onDelete: Cascade)
+
+  @@index([platformAccountId, startedAt])
+  @@map("sync_runs")
+}

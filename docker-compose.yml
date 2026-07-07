@@ -1,0 +1,34 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: digitalshelf
+      POSTGRES_PASSWORD: digitalshelf
+      POSTGRES_DB: digitalshelf
+    ports:
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U digitalshelf -d digitalshelf']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  saas-server:
+    build:
+      context: .
+      dockerfile: apps/saas-server/Dockerfile
+    ports:
+      - '8080:8080'
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://digitalshelf:digitalshelf@postgres:5432/digitalshelf
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
