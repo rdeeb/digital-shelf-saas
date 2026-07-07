@@ -4,6 +4,7 @@ import fastifyStatic from '@fastify/static';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadEnv } from './config/env.js';
+import { registerAccountAuthRoutes } from './routes/auth/account.js';
 import { registerSteamAuthRoutes } from './routes/auth/steam.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerV1AuthRoutes, registerV1OnboardingRoutes } from './routes/v1/index.js';
@@ -24,6 +25,7 @@ export async function buildApp(options: FastifyServerOptions = {}) {
   });
 
   await registerHealthRoutes(app);
+  await registerAccountAuthRoutes(app);
   await registerSteamAuthRoutes(app);
   await registerV1AuthRoutes(app);
   await registerV1OnboardingRoutes(app);
