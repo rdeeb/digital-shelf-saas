@@ -8,21 +8,41 @@ datasource db {
 }
 
 model User {
-  id          String   @id
-  steamId64   String   @unique
-  displayName String?
-  avatarUrl   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id              String   @id
+  email           String   @unique
+  passwordHash    String
+  emailVerifiedAt DateTime?
+  activationState String   @default("account_created")
+  steamId64       String?  @unique
+  displayName     String?
+  avatarUrl       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  sessions       Session[]
-  refreshTokens  RefreshToken[]
-  platformAccounts PlatformAccount[]
-  devices        Device[]
-  subscription   Subscription?
-  userSettings   UserSetting[]
+  sessions          Session[]
+  refreshTokens     RefreshToken[]
+  completionTokens  AccountCompletionToken[]
+  platformAccounts  PlatformAccount[]
+  devices           Device[]
+  subscription      Subscription?
+  userSettings      UserSetting[]
 
   @@map("users")
+}
+
+model AccountCompletionToken {
+  id         String   @id
+  userId     String
+  purpose    String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("account_completion_tokens")
 }
 
 model Session {
