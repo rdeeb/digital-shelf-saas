@@ -17,11 +17,25 @@ export type PublicSettings = {
 export type AuthMeResponse = {
   user: {
     id: string;
-    steamId64: string;
+    email: string;
+    steamId64: string | null;
+    activationState: 'account_created' | 'pending_activation' | 'active';
     displayName: string | null;
     avatarUrl: string | null;
   };
 };
+
+export type AccountLoginResponse =
+  | {
+      kind: 'authenticated';
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+    }
+  | {
+      kind: 'completion_required';
+      completionToken: string;
+    };
 
 export type BillingCycle = 'monthly' | 'annual';
 

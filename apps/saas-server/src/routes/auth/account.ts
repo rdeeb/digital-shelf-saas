@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { createAuthServiceFromEnv } from '../../lib/auth-deps.js';
+import { setSessionCookie } from '../../lib/session.js';
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -71,6 +72,8 @@ export async function registerAccountAuthRoutes(app: FastifyInstance): Promise<v
         });
       }
 
+      const session = await auth.createWebSession(result.user.id);
+      setSessionCookie(reply, session.id, 30);
       return reply.send(result);
     } catch (error) {
       if (error instanceof Error && error.message === 'INVALID_CREDENTIALS') {

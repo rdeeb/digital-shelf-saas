@@ -41,6 +41,7 @@ describe('subscription gate helpers', () => {
       resolveProtectedAccess({
         authenticated: true,
         subscriptionAccess: 'inactive',
+        activationState: 'active',
         pathname: '/subscribe/success',
       }),
     ).toEqual({ kind: 'allow' });
@@ -61,6 +62,7 @@ describe('subscription gate helpers', () => {
       resolveProtectedAccess({
         authenticated: true,
         subscriptionAccess: 'loading',
+        activationState: 'active',
         pathname: '/library',
       }),
     ).toEqual({ kind: 'loading' });
@@ -71,9 +73,21 @@ describe('subscription gate helpers', () => {
       resolveProtectedAccess({
         authenticated: true,
         subscriptionAccess: 'error',
+        activationState: 'active',
         pathname: '/library',
       }),
     ).toEqual({ kind: 'error' });
+  });
+
+  it('redirects incomplete authenticated users back to login', () => {
+    expect(
+      resolveProtectedAccess({
+        authenticated: true,
+        subscriptionAccess: 'inactive',
+        activationState: 'pending_activation',
+        pathname: '/library',
+      }),
+    ).toEqual({ kind: 'redirect', to: '/login' });
   });
 
   it('returns stop message only when new sales are disabled', () => {
