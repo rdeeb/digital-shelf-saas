@@ -200,10 +200,33 @@ describe('frame routes', () => {
       height: 320,
       cached: false,
       downloadUrls: {
-        png: expect.stringContaining('/api/device/v1/frames/'),
-        rgb565: expect.stringContaining('/api/device/v1/frames/'),
+        png: expect.stringContaining(`/api/v1/devices/${device.id}/frames/`),
+        rgb565: expect.stringContaining(`/api/v1/devices/${device.id}/frames/`),
       },
     });
+
+    const pngResponse = await app.inject({
+      method: 'GET',
+      url: response.json().downloadUrls.png as string,
+      cookies: { [SESSION_COOKIE]: session.id },
+    });
+    expect(pngResponse.statusCode).toBe(200);
+    expect(pngResponse.headers['content-type']).toContain('image/png');
+    expect(pngResponse.body).toBe('png-bytes');
+  });
+
+  it('requires active entitlement for device frame manifest', async () => {
+    const user = await seedUser('35', false);
+    const { token } = await seedDevice(user.id);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/device/v1/frame-manifest',
+      headers: { authorization: `Bearer ${token}` },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({ error: { code: 'SUBSCRIPTION_REQUIRED' } });
   });
 
   it('returns device frame manifest and blocks another device from downloading frame bytes', async () => {

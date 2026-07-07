@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyReply } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -19,7 +19,7 @@ import {
 } from '../../services/frame-service.js';
 import { createUserSettingsService } from '../../services/user-settings-service.js';
 import { loadEnv } from '../../config/env.js';
-import { createFrameStorage } from '../../storage/index.js';
+import { createFrameStorage, type FrameStorage } from '../../storage/index.js';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
 
@@ -33,10 +33,9 @@ const passthroughGameArtService: GameArtService = {
   },
 };
 
-function createSaasFrameService() {
-  const env = loadEnv();
+function createSaasFrameService(storage: FrameStorage = createFrameStorage(loadEnv(), { rootDir })) {
   return createFrameService(prisma, {
-    storage: createFrameStorage(env, { rootDir }),
+    storage,
     artRootPath: '',
     resolveSpineStyle: async () => 'gradient',
     resolveShowTitle: async () => true,
@@ -58,6 +57,32 @@ function frameErrorReply(reply: FastifyReply, error: unknown) {
   throw error;
 }
 
+async function sendWebFrameFile(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  deviceService: ReturnType<typeof createDeviceService>,
+  storage: FrameStorage,
+  format: 'png' | 'rgb565',
+) {
+  const { deviceId, frameId } = request.params as { deviceId: string; frameId: string };
+  const owned = await deviceService.verifyFrameOwnership(frameId, deviceId, request.userId);
+  if (!owned) {
+    return reply.status(404).send({
+      error: { code: 'FRAME_NOT_FOUND', message: `Frame not found: ${frameId}` },
+    });
+  }
+  try {
+    const buffer = await storage.readFrameFile(frameId, format);
+    return reply
+      .type(format === 'png' ? 'image/png' : 'application/octet-stream')
+      .send(buffer);
+  } catch {
+    return reply.status(404).send({
+      error: { code: 'FRAME_NOT_FOUND', message: `Frame not found: ${frameId}` },
+    });
+  }
+}
+
 export async function registerV1DeviceRoutes(app: FastifyInstance): Promise<void> {
   const auth = createAuthServiceFromEnv();
   const entitlement = createEntitlementService(prisma);
@@ -67,7 +92,8 @@ export async function registerV1DeviceRoutes(app: FastifyInstance): Promise<void
     entitlement,
     userSettings,
   });
-  const frameService = createSaasFrameService();
+  const frameStorage = createFrameStorage(loadEnv(), { rootDir });
+  const frameService = createSaasFrameService(frameStorage);
 
   await app.register(
     async (protectedApp) => {
@@ -108,6 +134,14 @@ export async function registerV1DeviceRoutes(app: FastifyInstance): Promise<void
           return frameErrorReply(reply, error);
         }
       });
+
+      protectedApp.get('/devices/:deviceId/frames/:frameId.png', async (request, reply) =>
+        sendWebFrameFile(request, reply, deviceService, frameStorage, 'png'),
+      );
+
+      protectedApp.get('/devices/:deviceId/frames/:frameId.rgb565', async (request, reply) =>
+        sendWebFrameFile(request, reply, deviceService, frameStorage, 'rgb565'),
+      );
     },
     { prefix: '/api/v1' },
   );
@@ -164,6 +198,7 @@ export async function registerV1DeviceRoutes(app: FastifyInstance): Promise<void
 
 export async function registerDeviceV1Routes(app: FastifyInstance): Promise<void> {
   const deviceService = createDeviceService(prisma, { pairingEnabled: true });
+  const entitlement = createEntitlementService(prisma);
   const frameService = createSaasFrameService();
   const frameStorage = createFrameStorage(loadEnv(), { rootDir });
   const deviceAuth = (await import('../../lib/device-auth.js')).createDeviceAuthHook(prisma);
@@ -182,7 +217,7 @@ export async function registerDeviceV1Routes(app: FastifyInstance): Promise<void
     protectedApp.addHook('preHandler', deviceAuth);
     registerDeviceConfigRoute(protectedApp, deviceService);
     registerDeviceHeartbeatRoute(protectedApp, deviceService);
-    registerDeviceFrameManifestRoute(protectedApp, frameService);
+    registerDeviceFrameManifestRoute(protectedApp, frameService, entitlement);
     registerDeviceFrameDownloadRoutes(protectedApp, deviceService, frameStorage);
   });
 }

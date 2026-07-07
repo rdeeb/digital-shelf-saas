@@ -1,5 +1,8 @@
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import cookie from '@fastify/cookie';
+import fastifyStatic from '@fastify/static';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { loadEnv } from './config/env.js';
 import { registerSteamAuthRoutes } from './routes/auth/steam.js';
 import { registerHealthRoutes } from './routes/health.js';
@@ -9,6 +12,8 @@ import { registerV1SettingsRoutes } from './routes/v1/settings.js';
 import { registerV1LibraryRoutes } from './routes/v1/library.js';
 import { registerV1DeviceRoutes, registerDeviceV1Routes } from './routes/v1/devices.js';
 import { registerBillingWebhookRoutes } from './routes/billing/webhooks.js';
+
+const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public');
 
 export async function buildApp(options: FastifyServerOptions = {}) {
   const env = loadEnv();
@@ -28,6 +33,11 @@ export async function buildApp(options: FastifyServerOptions = {}) {
   await registerV1DeviceRoutes(app);
   await registerDeviceV1Routes(app);
   await registerBillingWebhookRoutes(app);
+  await app.register(fastifyStatic, {
+    root: publicDir,
+    prefix: '/',
+    decorateReply: true,
+  });
 
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith('/api/')) {
@@ -38,7 +48,7 @@ export async function buildApp(options: FastifyServerOptions = {}) {
         },
       });
     }
-    return reply.status(404).send({ error: { code: 'NOT_FOUND', message: 'Not found' } });
+    return reply.type('text/html').sendFile('index.html');
   });
 
   return app;

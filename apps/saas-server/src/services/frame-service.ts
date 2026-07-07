@@ -79,6 +79,16 @@ function parseStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 }
 
+function frameDownloadUrls(deviceId: string, frameId: string, options: FrameAccessOptions = {}) {
+  const base = options.userId
+    ? `/api/v1/devices/${deviceId}/frames/${frameId}`
+    : `/api/device/v1/frames/${frameId}`;
+  return {
+    png: `${base}.png`,
+    rgb565: `${base}.rgb565`,
+  };
+}
+
 export function createFrameService(prisma: PrismaClient, deps: FrameServiceDeps) {
   const now = deps.now ?? (() => new Date());
 
@@ -233,10 +243,7 @@ export function createFrameService(prisma: PrismaClient, deps: FrameServiceDeps)
       cached: false,
       spineStyle,
       showTitle,
-      downloadUrls: {
-        png: `/api/device/v1/frames/${frameId}.png`,
-        rgb565: `/api/device/v1/frames/${frameId}.rgb565`,
-      },
+      downloadUrls: frameDownloadUrls(device.id, frameId, options),
     };
   }
 
@@ -282,10 +289,7 @@ export function createFrameService(prisma: PrismaClient, deps: FrameServiceDeps)
             cached: true,
             spineStyle,
             showTitle,
-            downloadUrls: {
-              png: `/api/device/v1/frames/${existing.id}.png`,
-              rgb565: `/api/device/v1/frames/${existing.id}.rgb565`,
-            },
+            downloadUrls: frameDownloadUrls(device.id, existing.id, options),
           };
         }
       }

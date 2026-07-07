@@ -1,14 +1,20 @@
 import type { FastifyInstance } from 'fastify';
+import { EntitlementError, type EntitlementService } from '@digital-shelf-saas/billing';
 import type { FrameService } from '../../../services/frame-service.js';
 import {
   DeviceConfigNotFoundError,
   NoEligibleGamesError,
 } from '../../../services/frame-service.js';
 
-export function registerDeviceFrameManifestRoute(app: FastifyInstance, frameService: FrameService) {
+export function registerDeviceFrameManifestRoute(
+  app: FastifyInstance,
+  frameService: FrameService,
+  entitlement: EntitlementService,
+) {
   app.get('/api/device/v1/frame-manifest', async (request, reply) => {
     if (!request.deviceId) return;
     try {
+      await entitlement.requireActiveSubscription(request.userId!);
       const frame = await frameService.getLatestFrame(request.deviceId);
       return {
         frameId: frame.frameId,
@@ -28,6 +34,11 @@ export function registerDeviceFrameManifestRoute(app: FastifyInstance, frameServ
       }
       if (error instanceof DeviceConfigNotFoundError) {
         return reply.status(404).send({
+          error: { code: error.code, message: error.message },
+        });
+      }
+      if (error instanceof EntitlementError) {
+        return reply.status(403).send({
           error: { code: error.code, message: error.message },
         });
       }
