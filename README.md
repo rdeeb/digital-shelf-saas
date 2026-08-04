@@ -137,6 +137,14 @@ docker compose up --build
 
 The server container uses the compose-network Postgres host and reads optional env values from `.env`.
 
+### Dokku production deploy
+
+Merges to `master` deploy via a self-hosted GitHub Actions workflow that runs lint, build, and test, then `git push`es to Dokku.
+
+One-time server bootstrap, secrets, runner requirements, rollback, and verification are documented in:
+
+[`docs/superpowers/specs/2026-08-04-dokku-auto-deploy-design.md`](docs/superpowers/specs/2026-08-04-dokku-auto-deploy-design.md)
+
 ## Useful Commands
 
 ```bash
