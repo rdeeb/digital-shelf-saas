@@ -1,0 +1,65 @@
+name: Deploy
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start test Postgres
+        run: |
+          set -euo pipefail
+          docker compose up -d postgres
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U digitalshelf -d digitalshelf; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not become ready in time" >&2
+          exit 1
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Deploy to Dokku
+        env:
+          DOKKU_SSH_PRIVATE_KEY: ${{ secrets.DOKKU_SSH_PRIVATE_KEY }}
+          DOKKU_HOST: ${{ secrets.DOKKU_HOST }}
+          DOKKU_APP: ${{ secrets.DOKKU_APP }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DOKKU_SSH_PRIVATE_KEY:-}" ] || [ -z "${DOKKU_HOST:-}" ] || [ -z "${DOKKU_APP:-}" ]; then
+            echo "Missing DOKKU_SSH_PRIVATE_KEY, DOKKU_HOST, or DOKKU_APP secret" >&2
+            exit 1
+          fi
+          KEY_FILE="${RUNNER_TEMP}/dokku_deploy_key"
+          printf '%s\n' "$DOKKU_SSH_PRIVATE_KEY" > "$KEY_FILE"
+          chmod 600 "$KEY_FILE"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          ssh-keyscan -H "$DOKKU_HOST" >> ~/.ssh/known_hosts
+          git remote remove dokku 2>/dev/null || true
+          git remote add dokku "dokku@${DOKKU_HOST}:${DOKKU_APP}"
+          export GIT_SSH_COMMAND="ssh -i ${KEY_FILE} -o IdentitiesOnly=yes"
+          git push dokku HEAD:refs/heads/master
