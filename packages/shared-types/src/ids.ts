@@ -14,6 +14,7 @@ export const ID_PREFIX = {
   sub: 'sub',
   subEvent: 'subev',
   authCode: 'acode',
+  authIdentity: 'authid',
 } as const;
 
 export type IdPrefix = keyof typeof ID_PREFIX;
