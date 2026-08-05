@@ -4,6 +4,7 @@ import { createId, USER_SETTING_KEYS } from '@digital-shelf-saas/shared-types';
 import { createEntitlementService } from '@digital-shelf-saas/billing';
 import { createDeviceService } from './device-service.js';
 import { createUserSettingsService } from './user-settings-service.js';
+import { createTestUser } from '../test-support/user-fixtures.js';
 
 const prisma = new PrismaClient();
 
@@ -28,15 +29,7 @@ describe('device-service tenant isolation', () => {
   });
 
   async function seedUserWithSub(steamSuffix: string) {
-    const user = await prisma.user.create({
-      data: {
-        id: createId('user'),
-        email: `${Date.now()}-${steamSuffix}@test.local`,
-        passwordHash: 'test-hash',
-        activationState: 'active',
-        steamId64: `${Date.now()}76561198000000${steamSuffix}`,
-      },
-    });
+    const user = await createTestUser(prisma, { email: `${Date.now()}-${steamSuffix}@test.local` });
     await prisma.subscription.create({
       data: {
         id: createId('sub'),

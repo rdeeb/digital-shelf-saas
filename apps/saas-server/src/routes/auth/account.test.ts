@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { buildApp } from '../../app.js';
 import { SESSION_COOKIE } from '../../lib/session.js';
 import { createAuthService } from '../../services/auth-service.js';
-import { createId } from '@digital-shelf-saas/shared-types';
+import { createTestUser } from '../../test-support/user-fixtures.js';
 
 describe('account auth routes', () => {
   let app: FastifyInstance;
@@ -76,15 +76,7 @@ describe('account auth routes', () => {
   });
 
   it('issues a steam relink completion token from settings flow', async () => {
-    const user = await prisma.user.create({
-      data: {
-        id: createId('user'),
-        email: `${Date.now()}-active@example.com`,
-        passwordHash: 'hash',
-        activationState: 'active',
-        steamId64: `${Date.now()}76561198000000321`,
-      },
-    });
+    const user = await createTestUser(prisma, { email: `${Date.now()}-active@example.com` });
     const session = await auth.createWebSession(user.id);
 
     const response = await app.inject({

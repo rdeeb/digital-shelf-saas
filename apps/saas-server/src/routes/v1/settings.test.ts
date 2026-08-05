@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { createId } from '@digital-shelf-saas/shared-types';
 import { PrismaClient } from '@prisma/client';
 import { buildApp } from '../../app.js';
 import { createAuthService } from '../../services/auth-service.js';
 import { SESSION_COOKIE } from '../../lib/session.js';
+import { createTestUser } from '../../test-support/user-fixtures.js';
 
 describe('GET/PATCH /api/v1/settings', () => {
   let app: FastifyInstance;
@@ -26,15 +26,7 @@ describe('GET/PATCH /api/v1/settings', () => {
   });
 
   it('returns default settings', async () => {
-    const user = await prisma.user.create({
-      data: {
-        id: createId('user'),
-        email: `${Date.now()}-settings-default@test.local`,
-        passwordHash: 'test-hash',
-        activationState: 'active',
-        steamId64: `${Date.now()}76561198000000066`,
-      },
-    });
+    const user = await createTestUser(prisma, { email: `${Date.now()}-settings-default@test.local` });
     const session = await auth.createWebSession(user.id);
 
     const response = await app.inject({
@@ -61,15 +53,7 @@ describe('GET/PATCH /api/v1/settings', () => {
   });
 
   it('patches display settings', async () => {
-    const user = await prisma.user.create({
-      data: {
-        id: createId('user'),
-        email: `${Date.now()}-settings-patch@test.local`,
-        passwordHash: 'test-hash',
-        activationState: 'active',
-        steamId64: `${Date.now()}76561198000000067`,
-      },
-    });
+    const user = await createTestUser(prisma, { email: `${Date.now()}-settings-patch@test.local` });
     const session = await auth.createWebSession(user.id);
 
     const response = await app.inject({

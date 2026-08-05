@@ -23,6 +23,7 @@ describe('createId', () => {
       game: 'game',
       userGame: 'ug',
       platformAccount: 'plat',
+      authIdentity: 'authid',
       device: 'dev',
       frame: 'frame',
       sync: 'sync',
