@@ -55,6 +55,12 @@ If a task can affect account boundaries, this skill is required.
 - Device identity comes from device bearer auth in `lib/device-auth.ts`.
 - Protected routes must derive identity from verified auth context, never from user-supplied `userId`.
 
+### Account and provider identity model
+
+- `User` is the only account/tenant boundary. `User.passwordHash` is nullable; a `User` may have password auth, one Google `AuthIdentity`, and one Apple `AuthIdentity` simultaneously.
+- `AuthIdentity` (`packages` n/a — server-only Prisma model) resolves by `(provider, providerSubject)` first; a verified, uniquely-matching email may auto-link a new subject to an existing account, but never moves a subject between accounts. Use `auth-identity-service.ts` for all resolve/link logic — do not hand-roll new resolution logic in routes.
+- Steam identity lives only in `PlatformAccount { platform: 'steam' }`, scoped by `userId`. There is no `User.steamId64` field and no `upsertUserBySteamId64` helper — do not reintroduce either. A bare Steam OpenID callback (no completion token) must never create or modify a `User`.
+
 ### Tenant isolation
 
 - Service methods accept a server-derived tenant identity and scope DB access with it.
@@ -98,6 +104,7 @@ If a task can affect account boundaries, this skill is required.
 - Do not mix public bootstrap endpoints with protected application behavior.
 - Do not put tenant checks only in the frontend.
 - Do not introduce parallel auth patterns when the existing cookie, bearer, and device-token flows already apply.
+- Do not reintroduce `User.steamId64`, `upsertUserBySteamId64`, or Steam-as-primary-login. Steam identity lives only in `PlatformAccount`.
 
 ## Public Endpoint Rule
 
