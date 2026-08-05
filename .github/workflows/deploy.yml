@@ -36,6 +36,13 @@ jobs:
           echo "Postgres did not become ready in time" >&2
           exit 1
 
+      - name: Apply database migrations
+        env:
+          DATABASE_URL: postgresql://digitalshelf:digitalshelf@localhost:5433/digitalshelf
+        run: |
+          npx prisma migrate deploy --schema apps/saas-server/prisma/schema.prisma
+          cd apps/saas-server && npx prisma db seed
+
       - name: Lint
         run: npm run lint
 
