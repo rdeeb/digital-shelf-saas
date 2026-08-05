@@ -136,6 +136,9 @@ export function createAuthIdentityService(prisma: PrismaClient) {
         where: { userId_provider: { userId: matchedUser.id, provider } },
       });
       if (alreadyLinked) {
+        if (alreadyLinked.providerSubject === providerSubject) {
+          return { kind: 'resolved', userId: matchedUser.id };
+        }
         return { kind: 'collision', reason: 'provider_already_linked' };
       }
 
