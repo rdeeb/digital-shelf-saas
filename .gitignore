@@ -7,3 +7,4 @@ apps/saas-server/public/*
 !apps/saas-server/public/.gitkeep
 .turbo/
 .worktrees/
+*.tsbuildinfo

@@ -42,16 +42,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Debug dist state
-        run: |
-          echo "--- shared-types/dist right after Build ---"
-          ls -la packages/shared-types/dist/ || echo "MISSING"
-          echo "--- node_modules symlink for shared-types ---"
-          ls -la node_modules/@digital-shelf-saas/shared-types || echo "MISSING SYMLINK"
-          readlink node_modules/@digital-shelf-saas/shared-types || true
-          echo "--- .turbo cache dirs ---"
-          find . -maxdepth 3 -iname ".turbo" -type d
-
       - name: Test
         run: npm test
 
