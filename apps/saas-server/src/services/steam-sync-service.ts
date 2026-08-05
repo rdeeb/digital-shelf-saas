@@ -80,36 +80,14 @@ export function createSteamSyncService(
 
   const activeJobByUser = new Map<string, Promise<void>>();
 
-  async function resolveSteamId64(userId: string): Promise<string> {
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    if (!user.steamId64) {
-      throw new SteamError('STEAM_API_ERROR', 'Steam account is not linked for this user.');
-    }
-    return user.steamId64;
-  }
-
-  async function ensurePlatformAccount(userId: string, steamId64: string) {
-    const existing = await prisma.platformAccount.findUnique({
+  async function requireSteamAccount(userId: string) {
+    const account = await prisma.platformAccount.findUnique({
       where: { userId_platform: { userId, platform: 'steam' } },
     });
-    if (existing) {
-      if (existing.externalId !== steamId64) {
-        return prisma.platformAccount.update({
-          where: { id: existing.id },
-          data: { externalId: steamId64 },
-        });
-      }
-      return existing;
+    if (!account) {
+      throw new SteamError('STEAM_API_ERROR', 'Steam account is not linked for this user.');
     }
-
-    return prisma.platformAccount.create({
-      data: {
-        id: createId('platformAccount'),
-        userId,
-        platform: 'steam',
-        externalId: steamId64,
-      },
-    });
+    return account;
   }
 
   async function runSyncJob(userId: string, syncRunId: string): Promise<void> {
@@ -119,8 +97,8 @@ export function createSteamSyncService(
         data: { status: 'running' },
       });
 
-      const steamId64 = await resolveSteamId64(userId);
-      const account = await ensurePlatformAccount(userId, steamId64);
+      const account = await requireSteamAccount(userId);
+      const steamId64 = account.externalId;
       const ownedGames = await getOwnedGamesImpl({
         steamId: steamId64,
         apiKey: config.steamApiKey,
@@ -263,8 +241,7 @@ export function createSteamSyncService(
       );
     }
 
-    const steamId64 = await resolveSteamId64(userId);
-    const account = await ensurePlatformAccount(userId, steamId64);
+    const account = await requireSteamAccount(userId);
     const syncRun = await prisma.syncRun.create({
       data: {
         id: createId('sync'),

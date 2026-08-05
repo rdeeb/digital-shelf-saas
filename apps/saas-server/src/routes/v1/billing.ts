@@ -24,11 +24,10 @@ export async function registerV1BillingRoutes(app: FastifyInstance): Promise<voi
   const entitlement = createEntitlementService(prisma);
 
   async function assertSteamLinked(userId: string): Promise<void> {
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-      select: { steamId64: true },
+    const account = await prisma.platformAccount.findUnique({
+      where: { userId_platform: { userId, platform: 'steam' } },
     });
-    if (!user.steamId64) {
+    if (!account) {
       throw new BillingError('STEAM_LINK_REQUIRED', 'Link your Steam account before subscribing.');
     }
   }
