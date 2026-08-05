@@ -3,9 +3,13 @@ import { z } from 'zod';
 export const authMeResponseSchema = z.object({
   user: z.object({
     id: z.string(),
-    steamId64: z.string(),
+    email: z.string(),
+    activationState: z.enum(['account_created', 'pending_activation', 'active']),
     displayName: z.string().nullable(),
     avatarUrl: z.string().nullable(),
+    steamConnected: z.boolean(),
+    hasPassword: z.boolean(),
+    authProviders: z.array(z.enum(['google', 'apple'])),
   }),
 });
 

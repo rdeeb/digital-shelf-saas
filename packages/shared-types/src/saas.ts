@@ -19,7 +19,6 @@ export type SubscriptionStatus = z.infer<typeof subscriptionStatusSchema>;
 
 export type User = {
   id: string;
-  steamId64: string;
   displayName: string | null;
   avatarUrl: string | null;
   createdAt: Date;

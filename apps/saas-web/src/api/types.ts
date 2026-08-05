@@ -18,10 +18,12 @@ export type AuthMeResponse = {
   user: {
     id: string;
     email: string;
-    steamId64: string | null;
     activationState: 'account_created' | 'pending_activation' | 'active';
     displayName: string | null;
     avatarUrl: string | null;
+    steamConnected: boolean;
+    hasPassword: boolean;
+    authProviders: Array<'google' | 'apple'>;
   };
 };
 

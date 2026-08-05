@@ -13,17 +13,24 @@ export async function registerV1AuthRoutes(app: FastifyInstance): Promise<void> 
       await registerAuthPlugin(protectedApp, auth);
 
       protectedApp.get('/auth/me', async (request, reply) => {
-        const user = await prisma.user.findUniqueOrThrow({
-          where: { id: request.userId! },
-        });
+        const userId = request.userId!;
+        const [user, steamAccount, authIdentities] = await Promise.all([
+          prisma.user.findUniqueOrThrow({ where: { id: userId } }),
+          prisma.platformAccount.findUnique({
+            where: { userId_platform: { userId, platform: 'steam' } },
+          }),
+          prisma.authIdentity.findMany({ where: { userId }, select: { provider: true } }),
+        ]);
         return reply.send({
           user: {
             id: user.id,
             email: user.email,
-            steamId64: user.steamId64,
             activationState: user.activationState,
             displayName: user.displayName,
             avatarUrl: user.avatarUrl,
+            steamConnected: steamAccount !== null,
+            hasPassword: user.passwordHash !== null,
+            authProviders: authIdentities.map((identity) => identity.provider),
           },
         });
       });

@@ -25,15 +25,32 @@ describe('GET /api/v1/auth/me', () => {
     await prisma.$disconnect();
   });
 
-  it('returns authenticated user', async () => {
+  it('returns only safe connection and method status for a fully linked user', async () => {
     const user = await prisma.user.create({
       data: {
         id: createId('user'),
         email: `${Date.now()}-auth@example.com`,
         passwordHash: 'hash',
         activationState: 'active',
-        steamId64: `${Date.now()}76561198000000055`,
         displayName: 'Test User',
+      },
+    });
+    await prisma.platformAccount.create({
+      data: {
+        id: createId('platformAccount'),
+        userId: user.id,
+        platform: 'steam',
+        externalId: `${Date.now()}76561198000000055`,
+      },
+    });
+    await prisma.authIdentity.create({
+      data: {
+        id: createId('authIdentity'),
+        userId: user.id,
+        provider: 'google',
+        providerSubject: `${Date.now()}-google-sub`,
+        email: user.email,
+        emailVerifiedAt: new Date(),
       },
     });
     const session = await auth.createWebSession(user.id);
@@ -49,10 +66,49 @@ describe('GET /api/v1/auth/me', () => {
       user: {
         id: user.id,
         email: user.email,
-        steamId64: user.steamId64,
         activationState: 'active',
         displayName: 'Test User',
         avatarUrl: null,
+        steamConnected: true,
+        hasPassword: true,
+        authProviders: ['google'],
+      },
+    });
+
+    await prisma.authIdentity.deleteMany({ where: { userId: user.id } });
+    await prisma.platformAccount.deleteMany({ where: { userId: user.id } });
+    await prisma.session.deleteMany({ where: { userId: user.id } });
+    await prisma.user.delete({ where: { id: user.id } });
+  });
+
+  it('reports no steam connection and no password for a social-only account', async () => {
+    const user = await prisma.user.create({
+      data: {
+        id: createId('user'),
+        email: `${Date.now()}-social@example.com`,
+        passwordHash: null,
+        activationState: 'pending_activation',
+      },
+    });
+    const session = await auth.createWebSession(user.id);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/v1/auth/me',
+      cookies: { [SESSION_COOKIE]: session.id },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      user: {
+        id: user.id,
+        email: user.email,
+        activationState: 'pending_activation',
+        displayName: null,
+        avatarUrl: null,
+        steamConnected: false,
+        hasPassword: false,
+        authProviders: [],
       },
     });
 
