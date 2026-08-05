@@ -177,4 +177,37 @@ describe('auth-service', () => {
     await prisma.platformAccount.deleteMany({ where: { userId: owner.id } });
     await prisma.user.deleteMany({ where: { id: { in: [owner.id, intruder.id] } } });
   });
+
+  it('fails closed on relink and preserves both the original owner and the requesting user', async () => {
+    const owner = await createUser({ email: `${Date.now()}-relink-owner@example.com` });
+    const steamId64 = `${Date.now()}76561198000001111`;
+    await linkSteamAccount(owner.id, steamId64);
+
+    const requester = await createUser({
+      email: `${Date.now()}-relink-requester@example.com`,
+      activationState: 'active',
+    });
+    const requesterOwnSteamId = `${Date.now()}76561198000002222`;
+    await linkSteamAccount(requester.id, requesterOwnSteamId);
+
+    await expect(auth.relinkSteamAccount(requester.id, steamId64)).rejects.toThrow(
+      SteamIdOwnedError,
+    );
+
+    const ownerAccount = await prisma.platformAccount.findUniqueOrThrow({
+      where: { userId_platform: { userId: owner.id, platform: 'steam' } },
+    });
+    expect(ownerAccount.externalId).toBe(steamId64);
+
+    const requesterAccount = await prisma.platformAccount.findUniqueOrThrow({
+      where: { userId_platform: { userId: requester.id, platform: 'steam' } },
+    });
+    expect(requesterAccount.externalId).toBe(requesterOwnSteamId);
+
+    const refreshedRequester = await prisma.user.findUniqueOrThrow({ where: { id: requester.id } });
+    expect(refreshedRequester.activationState).toBe('active');
+
+    await prisma.platformAccount.deleteMany({ where: { userId: { in: [owner.id, requester.id] } } });
+    await prisma.user.deleteMany({ where: { id: { in: [owner.id, requester.id] } } });
+  });
 });

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { PrismaClient } from '@prisma/client';
+import { createId } from '@digital-shelf-saas/shared-types';
 import { buildApp } from '../../app.js';
 import { SESSION_COOKIE } from '../../lib/session.js';
 import { createAuthService } from '../../services/auth-service.js';
@@ -73,6 +74,49 @@ describe('account auth routes', () => {
       where: { user: { email: 'needs-steam@example.com' } },
     });
     await prisma.user.deleteMany({ where: { email: 'needs-steam@example.com' } });
+  });
+
+  it('returns only safe token fields on successful login, never the raw user record', async () => {
+    const email = `${Date.now()}-login-safe@example.com`;
+    const password = 'hunter2-hunter2';
+    const signupResponse = await app.inject({
+      method: 'POST',
+      url: '/api/auth/account/signup',
+      payload: { email, password },
+    });
+    expect(signupResponse.statusCode).toBe(201);
+    const userId = signupResponse.json().user.id as string;
+
+    await prisma.platformAccount.create({
+      data: {
+        id: createId('platformAccount'),
+        userId,
+        platform: 'steam',
+        externalId: `${Date.now()}76561198000000321`,
+      },
+    });
+    await prisma.user.update({ where: { id: userId }, data: { activationState: 'active' } });
+
+    const loginResponse = await app.inject({
+      method: 'POST',
+      url: '/api/auth/account/login',
+      payload: { email, password },
+    });
+
+    expect(loginResponse.statusCode).toBe(200);
+    const body = loginResponse.json();
+    expect(body).toEqual({
+      kind: 'authenticated',
+      accessToken: expect.any(String),
+      refreshToken: expect.any(String),
+      expiresIn: expect.any(Number),
+    });
+    expect(body).not.toHaveProperty('user');
+    expect(JSON.stringify(body)).not.toContain('passwordHash');
+
+    await prisma.refreshToken.deleteMany({ where: { userId } });
+    await prisma.platformAccount.deleteMany({ where: { userId } });
+    await prisma.user.delete({ where: { id: userId } });
   });
 
   it('issues a steam relink completion token from settings flow', async () => {

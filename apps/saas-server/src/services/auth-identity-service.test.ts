@@ -45,10 +45,16 @@ describe('auth-identity-service', () => {
     await prisma.user.delete({ where: { id: user.id } });
   });
 
-  it('auto-links a new subject when the verified email uniquely matches an existing user', async () => {
+  it('auto-links a new subject when the verified email uniquely matches an existing user with a verified email', async () => {
     const email = `${Date.now()}-autolink@example.com`;
     const user = await prisma.user.create({
-      data: { id: createId('user'), email, passwordHash: 'existing-hash', activationState: 'active' },
+      data: {
+        id: createId('user'),
+        email,
+        passwordHash: 'existing-hash',
+        activationState: 'active',
+        emailVerifiedAt: new Date(),
+      },
     });
 
     const result = await service.resolveOrLinkProviderIdentity({
@@ -65,6 +71,34 @@ describe('auth-identity-service', () => {
     expect(identity.email).toBe(email);
 
     await prisma.authIdentity.deleteMany({ where: { userId: user.id } });
+    await prisma.user.delete({ where: { id: user.id } });
+  });
+
+  it('does not auto-link a new provider subject onto a password-registered user whose own email is unverified', async () => {
+    const email = `${Date.now()}-unverified-owner@example.com`;
+    const user = await prisma.user.create({
+      data: {
+        id: createId('user'),
+        email,
+        passwordHash: 'existing-hash',
+        activationState: 'pending_activation',
+        emailVerifiedAt: null,
+      },
+    });
+
+    const result = await service.resolveOrLinkProviderIdentity({
+      provider: 'google',
+      providerSubject: `hijack-sub-${Date.now()}`,
+      email,
+      emailVerified: true,
+    });
+
+    expect(result).toEqual({ kind: 'collision', reason: 'unverified_email' });
+    const identity = await prisma.authIdentity.findUnique({
+      where: { userId_provider: { userId: user.id, provider: 'google' } },
+    });
+    expect(identity).toBeNull();
+
     await prisma.user.delete({ where: { id: user.id } });
   });
 
@@ -110,7 +144,13 @@ describe('auth-identity-service', () => {
   it('does not auto-link when the matched user already has a different identity for the provider', async () => {
     const email = `${Date.now()}-already-has-google@example.com`;
     const user = await prisma.user.create({
-      data: { id: createId('user'), email, passwordHash: null, activationState: 'active' },
+      data: {
+        id: createId('user'),
+        email,
+        passwordHash: null,
+        activationState: 'active',
+        emailVerifiedAt: new Date(),
+      },
     });
     await prisma.authIdentity.create({
       data: {

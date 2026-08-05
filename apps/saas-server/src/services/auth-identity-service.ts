@@ -115,6 +115,7 @@ export function createAuthIdentityService(prisma: PrismaClient) {
               email: normalizedEmail,
               passwordHash: null,
               activationState: 'pending_activation',
+              emailVerifiedAt: new Date(),
             },
           }),
           prisma.authIdentity.create({
@@ -132,6 +133,9 @@ export function createAuthIdentityService(prisma: PrismaClient) {
       }
 
       const matchedUser = matches[0];
+      if (matchedUser.emailVerifiedAt === null) {
+        return { kind: 'collision', reason: 'unverified_email' };
+      }
       const alreadyLinked = await prisma.authIdentity.findUnique({
         where: { userId_provider: { userId: matchedUser.id, provider } },
       });

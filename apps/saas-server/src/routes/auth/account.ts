@@ -79,7 +79,12 @@ export async function registerAccountAuthRoutes(app: FastifyInstance): Promise<v
 
       const session = await auth.createWebSession(result.user.id);
       setSessionCookie(reply, session.id, 30);
-      return reply.send(result);
+      return reply.send({
+        kind: 'authenticated',
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        expiresIn: result.expiresIn,
+      });
     } catch (error) {
       if (error instanceof Error && error.message === 'INVALID_CREDENTIALS') {
         return reply.status(401).send({
