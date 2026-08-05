@@ -2,9 +2,8 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 import { createId, USER_SETTING_KEYS } from '@digital-shelf-saas/shared-types';
 import { createEntitlementService } from '@digital-shelf-saas/billing';
-import { createDeviceService, DeviceServiceError } from './device-service.js';
+import { createDeviceService } from './device-service.js';
 import { createUserSettingsService } from './user-settings-service.js';
-import { hashDeviceToken } from '../lib/device-auth.js';
 
 const prisma = new PrismaClient();
 
