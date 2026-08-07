@@ -51,15 +51,23 @@ function createTestMetadataService() {
 }
 
 async function createTestUser() {
-  return prisma.user.create({
+  const user = await prisma.user.create({
     data: {
       id: createId('user'),
       email: `${Date.now()}-sync@example.com`,
       passwordHash: 'hash',
       activationState: 'active',
-      steamId64: `${Date.now()}76561198000000000`,
     },
   });
+  await prisma.platformAccount.create({
+    data: {
+      id: createId('platformAccount'),
+      userId: user.id,
+      platform: 'steam',
+      externalId: `${Date.now()}76561198000000000`,
+    },
+  });
+  return user;
 }
 
 describe('steam-sync-service', () => {
@@ -197,16 +205,16 @@ describe('steam-sync-service', () => {
   });
 
   it('resets steam-derived library data without deleting subscriptions', async () => {
+    const steamId64 = `${Date.now()}76561198000000456`;
     const user = await prisma.user.create({
       data: {
         id: createId('user'),
         email: `${Date.now()}-reset@example.com`,
         passwordHash: 'hash',
         activationState: 'active',
-        steamId64: `${Date.now()}76561198000000456`,
         subscription: {
           create: {
-            id: createId('subscription'),
+            id: createId('sub'),
             planId: 'plan_basic',
             provider: 'paypal',
             status: 'active',
@@ -220,7 +228,7 @@ describe('steam-sync-service', () => {
         id: createId('platformAccount'),
         userId: user.id,
         platform: 'steam',
-        externalId: user.steamId64!,
+        externalId: steamId64,
       },
     });
     const game = await prisma.game.create({

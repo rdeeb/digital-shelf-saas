@@ -32,7 +32,6 @@ describe('billing routes', () => {
         email: `${Date.now()}-plans@example.com`,
         passwordHash: 'hash',
         activationState: 'active',
-        steamId64: `${Date.now()}76561198000000033`,
       },
     });
     const session = await auth.createWebSession(user.id);
@@ -62,7 +61,6 @@ describe('billing routes', () => {
         email: `${Date.now()}-status@example.com`,
         passwordHash: 'hash',
         activationState: 'active',
-        steamId64: `${Date.now()}76561198000000034`,
       },
     });
     await prisma.subscription.create({

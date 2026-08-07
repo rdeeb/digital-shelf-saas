@@ -9,6 +9,7 @@ import { buildApp } from '../app.js';
 import { hashDeviceToken } from '../lib/device-auth.js';
 import { SESSION_COOKIE } from '../lib/session.js';
 import { createAuthService } from '../services/auth-service.js';
+import { createTestUser } from '../test-support/user-fixtures.js';
 
 vi.mock('@digital-shelf-saas/renderer', () => ({
   renderFrame: vi.fn(async () => ({
@@ -43,15 +44,7 @@ async function cleanDb() {
 }
 
 async function seedUser(suffix: string) {
-  const user = await prisma.user.create({
-    data: {
-      id: createId('user'),
-      email: `${Date.now()}-${suffix}@test.local`,
-      passwordHash: 'test-hash',
-      activationState: 'active',
-      steamId64: `${Date.now()}76561198000000${suffix}`,
-    },
-  });
+  const user = await createTestUser(prisma, { email: `${Date.now()}-${suffix}@test.local` });
   await prisma.subscription.create({
     data: {
       id: createId('sub'),

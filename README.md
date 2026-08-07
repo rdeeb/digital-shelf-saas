@@ -22,6 +22,14 @@ Multi-tenant SaaS server and web app for Digital Shelf. This repo contains the c
 | `packages/` | shared packages for types, billing, Steam, rendering, and protocol schemas |
 | `docs/superpowers/` | design specs and implementation plans |
 
+## Identity Model
+
+- `User` is the sole internal account and tenant boundary.
+- Email/password is optional (`User.passwordHash` is nullable) — Google/Apple-only accounts can sign in without a password. Google and Apple OAuth flows themselves are implemented in a later task; only the schema and services exist today.
+- Google and Apple identities are stored in `AuthIdentity`, unique per `(provider, providerSubject)` globally and per `(userId, provider)` per account (one Google + one Apple per account).
+- Steam is a linked gaming-platform account, not a login method. It is stored only in `PlatformAccount { platform: 'steam' }`, and every account must connect Steam after registering (password or provider) before the product is usable — see `docs/superpowers/specs/2026-07-07-account-activation-and-steam-linking-design.md`.
+- `GET /api/v1/auth/me` returns only safe status (`steamConnected`, `hasPassword`, `authProviders`) — never provider subjects, raw claims, or internal identity record ids.
+
 ## Prerequisites
 
 - Node.js `>=20`

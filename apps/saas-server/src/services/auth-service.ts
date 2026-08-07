@@ -1,7 +1,9 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { AccountCompletionToken, PrismaClient, Session, User } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { createId } from '@digital-shelf-saas/shared-types';
 import { generateToken, hashToken } from '../lib/crypto.js';
+import { normalizeEmail } from './auth-identity-service.js';
 import { resetSteamLibraryForUser } from './steam-sync-service.js';
 
 export type AuthServiceConfig = {
@@ -27,6 +29,17 @@ export type PasswordLoginResult =
       expiresIn: number;
     }
   | { kind: 'completion_required'; userId: string; completionToken: string };
+
+export class SteamIdOwnedError extends Error {
+  readonly code = 'STEAM_ID_OWNED' as const;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'SteamIdOwnedError';
+  }
+}
+
+type PlatformAccountDb = Pick<PrismaClient, 'platformAccount'>;
 
 function sessionExpiresAt(ttlDays: number): Date {
   return new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000);
@@ -68,6 +81,47 @@ function hashPasswordValue(password: string): string {
   return createHash('sha256').update(password).digest('hex');
 }
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+async function assertSteamIdAvailable(
+  db: PlatformAccountDb,
+  steamId64: string,
+  userId: string,
+): Promise<void> {
+  const ownedByOther = await db.platformAccount.findFirst({
+    where: { platform: 'steam', externalId: steamId64, NOT: { userId } },
+  });
+  if (ownedByOther) {
+    throw new SteamIdOwnedError(
+      'That Steam account is already linked to another Digital Shelf account.',
+    );
+  }
+}
+
+async function upsertSteamPlatformAccount(
+  db: PlatformAccountDb,
+  userId: string,
+  steamId64: string,
+) {
+  await assertSteamIdAvailable(db, steamId64, userId);
+  try {
+    return await db.platformAccount.upsert({
+      where: { userId_platform: { userId, platform: 'steam' } },
+      create: { id: createId('platformAccount'), userId, platform: 'steam', externalId: steamId64 },
+      update: { externalId: steamId64 },
+    });
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      throw new SteamIdOwnedError(
+        'That Steam account is already linked to another Digital Shelf account.',
+      );
+    }
+    throw error;
+  }
+}
+
 export function createAuthService(prisma: PrismaClient, config: AuthServiceConfig) {
   return {
     async hashPassword(password: string): Promise<string> {
@@ -78,24 +132,10 @@ export function createAuthService(prisma: PrismaClient, config: AuthServiceConfi
       return prisma.user.create({
         data: {
           id: createId('user'),
-          email,
+          email: normalizeEmail(email),
           passwordHash: hashPasswordValue(password),
           activationState: 'pending_activation',
         },
-      });
-    },
-
-    async upsertUserBySteamId64(steamId64: string): Promise<User> {
-      return prisma.user.upsert({
-        where: { steamId64 },
-        create: {
-          id: createId('user'),
-          email: `${steamId64}@steam.placeholder.local`,
-          passwordHash: 'steam-only-migrated-account',
-          activationState: 'active',
-          steamId64,
-        },
-        update: {},
       });
     },
 
@@ -209,37 +249,35 @@ export function createAuthService(prisma: PrismaClient, config: AuthServiceConfi
     },
 
     async activateAccountWithSteam(userId: string, steamId64: string): Promise<User> {
-      return prisma.user.update({
-        where: { id: userId },
-        data: {
-          steamId64,
-          activationState: 'active',
-        },
+      await prisma.$transaction(async (tx) => {
+        await upsertSteamPlatformAccount(tx, userId, steamId64);
+        await tx.user.update({ where: { id: userId }, data: { activationState: 'active' } });
       });
+      return prisma.user.findUniqueOrThrow({ where: { id: userId } });
     },
 
     async relinkSteamAccount(userId: string, steamId64: string): Promise<User> {
       await prisma.$transaction(async (tx) => {
+        await assertSteamIdAvailable(tx, steamId64, userId);
         await resetSteamLibraryForUser(tx, userId);
-        await tx.user.update({
-          where: { id: userId },
-          data: {
-            steamId64,
-            activationState: 'active',
-          },
-        });
+        await upsertSteamPlatformAccount(tx, userId, steamId64);
+        await tx.user.update({ where: { id: userId }, data: { activationState: 'active' } });
       });
 
       return prisma.user.findUniqueOrThrow({ where: { id: userId } });
     },
 
     async loginWithPassword(email: string, password: string): Promise<PasswordLoginResult> {
-      const user = await prisma.user.findUnique({ where: { email } });
-      if (!user || user.passwordHash !== hashPasswordValue(password)) {
+      const user = await prisma.user.findUnique({ where: { email: normalizeEmail(email) } });
+      if (!user || !user.passwordHash || user.passwordHash !== hashPasswordValue(password)) {
         throw new Error('INVALID_CREDENTIALS');
       }
 
-      if (!user.steamId64 || user.activationState !== 'active') {
+      const steamAccount = await prisma.platformAccount.findUnique({
+        where: { userId_platform: { userId: user.id, platform: 'steam' } },
+      });
+
+      if (!steamAccount || user.activationState !== 'active') {
         const completionToken = await this.createCompletionToken(user.id, 'account_activation');
         return {
           kind: 'completion_required',

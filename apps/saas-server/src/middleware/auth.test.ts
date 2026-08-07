@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { createId } from '@digital-shelf-saas/shared-types';
 import { PrismaClient } from '@prisma/client';
 import { buildApp } from '../app.js';
 import { createAuthService } from '../services/auth-service.js';
 import { SESSION_COOKIE } from '../lib/session.js';
+import { createTestUser } from '../test-support/user-fixtures.js';
 
 describe('auth middleware', () => {
   let app: FastifyInstance;
@@ -32,15 +32,7 @@ describe('auth middleware', () => {
   });
 
   it('accepts session cookie', async () => {
-    const user = await prisma.user.create({
-      data: {
-        id: createId('user'),
-        email: `${Date.now()}-cookie@test.local`,
-        passwordHash: 'test-hash',
-        activationState: 'active',
-        steamId64: `${Date.now()}76561198000000077`,
-      },
-    });
+    const user = await createTestUser(prisma, { email: `${Date.now()}-cookie@test.local` });
     const session = await auth.createWebSession(user.id);
 
     const response = await app.inject({
@@ -57,15 +49,7 @@ describe('auth middleware', () => {
   });
 
   it('accepts bearer token', async () => {
-    const user = await prisma.user.create({
-      data: {
-        id: createId('user'),
-        email: `${Date.now()}-bearer@test.local`,
-        passwordHash: 'test-hash',
-        activationState: 'active',
-        steamId64: `${Date.now()}76561198000000066`,
-      },
-    });
+    const user = await createTestUser(prisma, { email: `${Date.now()}-bearer@test.local` });
     const tokens = await auth.createMobileTokens(user.id);
 
     const response = await app.inject({
